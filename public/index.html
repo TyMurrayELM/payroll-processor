@@ -344,23 +344,48 @@
         let allBranches = new Set();
         let allDivisions = new Set();
         
-        // Slack webhook configuration - map Branch + Division to webhook URLs
-        // Webhooks are loaded from /api/slack-config endpoint
-        let slackWebhooks = {};
+        // Slack configuration - using Bot Token approach
+        // Channel mappings: Branch|Division -> Channel ID
+        const slackChannels = {
+            // Corporate divisions
+            'Corporate|Arbor': 'C06JT9Q4A3B',
+            'Corporate|Enhancements': 'C06JTB3QS0Z',
+            'Corporate|Spray': 'C06U9K3EKT7',
+            'Corporate|Fleet & Equipment': 'C0896PY7EAF',
+        };
         
-        // Load webhooks from API on page load
-        async function loadSlackWebhooks() {
-            try {
-                const response = await fetch('/api/slack-config');
-                if (response.ok) {
-                    slackWebhooks = await response.json();
-                    console.log('Slack webhooks loaded');
-                }
-            } catch (e) {
-                console.log('Could not load Slack config:', e);
+        // Get Slack channel for a branch/division combo
+        function getSlackChannel(branch, division) {
+            // Check exact match first
+            const exactKey = `${branch}|${division}`;
+            if (slackChannels[exactKey]) {
+                return slackChannels[exactKey];
             }
+            
+            // Las Vegas - any division goes to same channel
+            if (branch === 'Las Vegas') {
+                return 'C04RB0JRMRS';
+            }
+            
+            // Phoenix (any branch) - Maintenance or Irrigation
+            if (branch.startsWith('Phoenix') || branch.startsWith('Phx')) {
+                if (division.includes('Maintenance') || division === 'Irrigation') {
+                    return 'C04V05RE822';
+                }
+            }
+            
+            return null;
         }
-        loadSlackWebhooks();
+        
+        // For backward compatibility
+        function getSlackWebhook(branch, division) {
+            return getSlackChannel(branch, division);
+        }
+        
+        // Known channels for UI display (so buttons show without async load)
+        function hasKnownSlackChannel(branch, division) {
+            return getSlackChannel(branch, division) !== null;
+        }
         
         // Get Slack webhook for a branch/division combo
         function getSlackWebhook(branch, division) {
@@ -369,9 +394,9 @@
         
         // Send message to Slack
         async function sendToSlack(branch, division, employees, alertType = 'no-hours') {
-            const webhook = getSlackWebhook(branch, division);
-            if (!webhook) {
-                alert(`No Slack webhook configured for ${branch} - ${division}`);
+            const channel = getSlackChannel(branch, division);
+            if (!channel) {
+                alert(`No Slack channel configured for ${branch} - ${division}`);
                 return;
             }
             
@@ -391,37 +416,25 @@
             
             const messageText = `${title}\n\nPay period: ${startStr} - ${endStr}\n\nThe following employees ${alertType === 'no-hours' ? 'have no hours' : 'are under 40 hours'}:\n${employeeList}`;
             
-            const message = { text: messageText };
-            
             try {
-                // Try using the API route first (works when deployed to Vercel)
+                // Use the API route to send via bot token
                 const apiResponse = await fetch('/api/slack', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ webhook, message })
+                    body: JSON.stringify({ channel, text: messageText })
                 });
                 
-                if (apiResponse.ok) {
+                const result = await apiResponse.json();
+                
+                if (apiResponse.ok && result.success) {
                     alert('✅ Message sent to Slack!');
-                    return;
+                } else {
+                    throw new Error(result.error || 'Failed to send');
                 }
-            } catch (apiErr) {
-                // API route not available, try direct (will likely fail due to CORS)
-                console.log('API route not available, trying direct...');
-            }
-            
-            try {
-                // Try direct webhook (works in some environments)
-                await fetch(webhook, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    mode: 'no-cors',
-                    body: JSON.stringify(message)
-                });
-                alert('✅ Message sent to Slack!\n\n(Note: Unable to confirm delivery due to CORS)');
             } catch (err) {
+                console.error('Slack error:', err);
                 // Fallback: show message to copy
-                if (confirm('Could not send to Slack. Copy message to clipboard instead?')) {
+                if (confirm(`Could not send to Slack: ${err.message}\n\nCopy message to clipboard instead?`)) {
                     navigator.clipboard.writeText(messageText);
                     alert('Message copied to clipboard!');
                 }
@@ -1582,7 +1595,7 @@
                             const divUnder40Emps = under40.filter(emp => emp.branch === branch && emp.division === div);
                             // Check if Slack webhook exists (either loaded or known)
                             const knownWebhooks = ['Corporate|Arbor']; // Add more as needed
-                            const hasSlackWebhook = getSlackWebhook(branch, div) !== null || knownWebhooks.includes(`${branch}|${div}`);
+                            const hasSlackWebhook = getSlackChannel(branch, div) !== null;
                             
                             // Store employee data for Slack buttons
                             const slackDataId = `slack_${branchId}_${div.replace(/[^a-zA-Z0-9]/g, '_')}`;

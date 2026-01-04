@@ -1,22 +1,34 @@
 export async function POST(request) {
   try {
-    const { webhook, message } = await request.json();
+    const { channel, text } = await request.json();
     
-    if (!webhook || !message) {
-      return Response.json({ error: 'Missing webhook or message' }, { status: 400 });
+    if (!channel || !text) {
+      return Response.json({ error: 'Missing channel or text' }, { status: 400 });
     }
     
-    const response = await fetch(webhook, {
+    const botToken = process.env.SLACK_BOT_TOKEN;
+    if (!botToken) {
+      return Response.json({ error: 'Slack bot token not configured' }, { status: 500 });
+    }
+    
+    const response = await fetch('https://slack.com/api/chat.postMessage', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(message)
+      headers: {
+        'Authorization': `Bearer ${botToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        channel: channel,
+        text: text
+      })
     });
     
-    if (response.ok) {
+    const result = await response.json();
+    
+    if (result.ok) {
       return Response.json({ success: true });
     } else {
-      const errorText = await response.text();
-      return Response.json({ error: errorText }, { status: response.status });
+      return Response.json({ error: result.error || 'Slack API error' }, { status: 400 });
     }
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
