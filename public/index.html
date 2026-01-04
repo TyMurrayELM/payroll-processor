@@ -1580,7 +1580,9 @@
                             // Get lists for Slack
                             const divNoHoursEmps = noHours.filter(emp => emp.branch === branch && emp.division === div);
                             const divUnder40Emps = under40.filter(emp => emp.branch === branch && emp.division === div);
-                            const hasSlackWebhook = getSlackWebhook(branch, div) !== null;
+                            // Check if Slack webhook exists (either loaded or known)
+                            const knownWebhooks = ['Corporate|Arbor']; // Add more as needed
+                            const hasSlackWebhook = getSlackWebhook(branch, div) !== null || knownWebhooks.includes(`${branch}|${div}`);
                             
                             // Store employee data for Slack buttons
                             const slackDataId = `slack_${branchId}_${div.replace(/[^a-zA-Z0-9]/g, '_')}`;
@@ -1635,7 +1637,8 @@
                                         <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded">${divData.employees.size}</span>
                                         ${divUnder40 > 0 ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">${divUnder40} under 40</span>` : ''}
                                         ${divNoHours > 0 ? `<span class="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded">${divNoHours} no hrs</span>` : ''}
-                                        ${hasSlackWebhook ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="Slack integration available">📤</span>` : ''}
+                                        ${hasSlackWebhook && divNoHours > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'no-hours')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send no hours alert to Slack">📤 No Hrs</span>` : ''}
+                                        ${hasSlackWebhook && divUnder40 > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'under-40')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send under 40 alert to Slack">📤 Under 40</span>` : ''}
                                     </div>
                                     <div class="flex items-center gap-1.5 text-xs flex-shrink-0 ml-2">
                                         <span class="px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded">${formatNumber(divData.reg)}</span>
