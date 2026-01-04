@@ -536,6 +536,16 @@
         }
         
         // Send message to Slack
+        // Get branch emoji for Slack
+        function getBranchEmoji(branch) {
+            const emojiMap = {
+                'Phoenix - North': ':n:',
+                'Phoenix - SouthWest': ':sw:',
+                'Phoenix - SouthEast': ':se:'
+            };
+            return emojiMap[branch] || '';
+        }
+        
         async function sendToSlack(branch, division, employees, alertType = 'no-hours') {
             const channel = getSlackChannel(branch, division);
             if (!channel) {
@@ -548,12 +558,15 @@
             const startStr = startDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
             const endStr = endDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
             
+            const branchEmoji = getBranchEmoji(branch);
+            const branchDisplay = branchEmoji ? `${branchEmoji} ${branch}` : branch;
+            
             let title, employeeList;
             if (alertType === 'no-hours') {
-                title = `⚠️ ${division} (${branch}) - No Hours Alert`;
+                title = `⚠️ ${division} (${branchDisplay}) - No Hours Alert`;
                 employeeList = employees.map(emp => `• ${emp.name}`).join('\n');
             } else if (alertType === 'under-40') {
-                title = `⚠️ ${division} (${branch}) - Under 40 Hours Alert`;
+                title = `⚠️ ${division} (${branchDisplay}) - Under 40 Hours Alert`;
                 employeeList = employees.map(emp => `• ${emp.name} - ${emp.totalHours.toFixed(1)} hrs`).join('\n');
             }
             
