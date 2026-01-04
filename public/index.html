@@ -345,12 +345,22 @@
         let allDivisions = new Set();
         
         // Slack webhook configuration - map Branch + Division to webhook URLs
-        const slackWebhooks = {
-            'Corporate|Arbor': 'SLACK_WEBHOOK_PLACEHOLDER'
-            // Add more mappings as needed:
-            // 'Las Vegas|Maintenance': 'https://hooks.slack.com/services/...',
-            // 'Phoenix - North|Irrigation': 'https://hooks.slack.com/services/...',
-        };
+        // Webhooks are loaded from /api/slack-config endpoint
+        let slackWebhooks = {};
+        
+        // Load webhooks from API on page load
+        async function loadSlackWebhooks() {
+            try {
+                const response = await fetch('/api/slack-config');
+                if (response.ok) {
+                    slackWebhooks = await response.json();
+                    console.log('Slack webhooks loaded');
+                }
+            } catch (e) {
+                console.log('Could not load Slack config:', e);
+            }
+        }
+        loadSlackWebhooks();
         
         // Get Slack webhook for a branch/division combo
         function getSlackWebhook(branch, division) {
@@ -1600,13 +1610,13 @@
                             const slackButtonsHtml = hasSlackWebhook ? `
                                 <div class="flex gap-2 mb-2 pt-1">
                                     ${divNoHoursEmps.length > 0 ? `
-                                        <button onclick="sendSlackAlert('${slackDataId}', 'no-hours')" class="flex items-center gap-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded transition-colors" title="Send no hours alert to Slack">
+                                        <button onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'no-hours')" class="flex items-center gap-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded transition-colors" title="Send no hours alert to Slack">
                                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
                                             No Hours (${divNoHoursEmps.length})
                                         </button>
                                     ` : ''}
                                     ${divUnder40Emps.length > 0 ? `
-                                        <button onclick="sendSlackAlert('${slackDataId}', 'under-40')" class="flex items-center gap-1 px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded transition-colors" title="Send under 40 hours alert to Slack">
+                                        <button onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'under-40')" class="flex items-center gap-1 px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded transition-colors" title="Send under 40 hours alert to Slack">
                                             <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
                                             Under 40 (${divUnder40Emps.length})
                                         </button>
