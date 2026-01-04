@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.table-container {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.pay-type-reg { background-color: rgba(243, 244, 246, 0.5); }
+.pay-type-pto { background-color: rgba(220, 252, 231, 0.5); }
+.pay-type-hol { background-color: rgba(254, 243, 199, 0.5); }
+.pay-type-ot { background-color: rgba(254, 226, 226, 0.5); }

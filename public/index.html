@@ -1,0 +1,2087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payroll Processor - Aspire to NetSuite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        .pay-type-pto { background-color: #dcfce7; }
+        .pay-type-hol { background-color: #fef3c7; }
+        .pay-type-ot { background-color: #fee2e2; }
+        .pay-type-reg { background-color: #f3f4f6; }
+        .table-container { max-height: 600px; overflow-y: auto; }
+        .table-container thead { position: sticky; top: 0; z-index: 10; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 to-slate-800 min-h-screen py-8 px-4">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-white mb-2">Payroll Processor</h1>
+            <p class="text-slate-400">Convert Aspire data dumps to NetSuite upload format</p>
+        </div>
+
+        <!-- Main Card -->
+        <div class="bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <!-- Step 1: Upload Files -->
+            <div class="p-8 border-b border-gray-100">
+                <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm mr-3">1</span>
+                    Upload Your Files
+                </h2>
+                
+                <div class="grid md:grid-cols-3 gap-6">
+                    <!-- PTO Dump -->
+                    <div class="relative">
+                        <div id="ptoDropzone" class="border-2 border-dashed rounded-xl p-6 text-center transition-all border-gray-300 hover:border-blue-400 cursor-pointer">
+                            <input type="file" id="ptoFile" accept=".csv,.xlsx,.xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <div class="mb-3" id="ptoIcon">
+                                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                            </div>
+                            <p class="font-medium text-gray-700">PTO Dump from Aspire</p>
+                            <p class="text-sm text-gray-500 mt-1" id="ptoStatus">PTO & Holiday hours</p>
+                        </div>
+                    </div>
+
+                    <!-- Data Dump -->
+                    <div class="relative">
+                        <div id="dataDumpDropzone" class="border-2 border-dashed rounded-xl p-6 text-center transition-all border-gray-300 hover:border-blue-400 cursor-pointer">
+                            <input type="file" id="dataDumpFile" accept=".csv,.xlsx,.xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <div class="mb-3" id="dataDumpIcon">
+                                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                            </div>
+                            <p class="font-medium text-gray-700">Data Dump from Aspire</p>
+                            <p class="text-sm text-gray-500 mt-1" id="dataDumpStatus">Regular work hours</p>
+                        </div>
+                    </div>
+
+                    <!-- Employee List -->
+                    <div class="relative">
+                        <div id="employeeDropzone" class="border-2 border-dashed rounded-xl p-6 text-center transition-all border-gray-300 hover:border-blue-400 cursor-pointer">
+                            <input type="file" id="employeeFile" accept=".csv,.xlsx,.xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <div class="mb-3" id="employeeIcon">
+                                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                            </div>
+                            <p class="font-medium text-gray-700">NetSuite Employee List</p>
+                            <p class="text-sm text-gray-500 mt-1" id="employeeStatus">Employee mapping data</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Settings -->
+            <div class="p-8 border-b border-gray-100 bg-gray-50">
+                <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm mr-3">2</span>
+                    Pay Period Settings
+                </h2>
+                
+                <div class="max-w-md">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Pay Period End Date
+                    </label>
+                    <input type="date" id="payPeriodDate" onchange="updatePayPeriodDisplay(); updateProcessButton();" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                    <p class="text-sm text-gray-500 mt-2">Select any date within the pay week (Monday-Sunday)</p>
+                    <div id="payPeriodDisplay" class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg hidden">
+                        <p class="text-sm font-medium text-blue-800">Pay Period:</p>
+                        <p class="text-sm text-blue-700" id="payPeriodRange"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Process -->
+            <div class="p-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm mr-3">3</span>
+                    Process & Download
+                </h2>
+
+                <!-- Warnings/Errors Container -->
+                <div id="messagesContainer"></div>
+
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap gap-4">
+                    <button id="processBtn" onclick="processData()" disabled class="px-8 py-3 rounded-lg font-semibold text-white transition-all bg-gray-400 cursor-not-allowed">
+                        Process Data
+                    </button>
+                    <button id="downloadBtn" onclick="downloadCSV()" class="hidden px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        <span id="downloadText">Download CSV</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary Statistics -->
+            <div id="summarySection" class="hidden border-t border-gray-100">
+                <div class="p-8 bg-gradient-to-r from-slate-50 to-gray-50">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                        <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                        Summary Statistics
+                    </h3>
+                    
+                    <!-- Overall Stats -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+                        <div class="bg-white rounded-xl p-4 shadow-sm border-2 border-gray-200">
+                            <p class="text-sm text-gray-500 mb-1">Total Records</p>
+                            <p class="text-2xl font-bold text-gray-800" id="statTotalRecords">0</p>
+                        </div>
+                        <div class="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 shadow-sm border-2 border-purple-200">
+                            <p class="text-sm text-purple-600 mb-1">Total Hours</p>
+                            <p class="text-2xl font-bold text-purple-700" id="statTotalHours">0</p>
+                        </div>
+                        <div class="bg-gray-100 rounded-xl p-4 shadow-sm border border-gray-200">
+                            <p class="text-sm text-gray-600 mb-1">Regular Hours</p>
+                            <p class="text-2xl font-bold text-gray-700" id="statRegHours">0</p>
+                        </div>
+                        <div class="bg-green-50 rounded-xl p-4 shadow-sm border border-green-100">
+                            <p class="text-sm text-green-600 mb-1">PTO Hours</p>
+                            <p class="text-2xl font-bold text-green-700" id="statPTOHours">0</p>
+                        </div>
+                        <div class="bg-amber-50 rounded-xl p-4 shadow-sm border border-amber-100">
+                            <p class="text-sm text-amber-600 mb-1">Holiday Hours</p>
+                            <p class="text-2xl font-bold text-amber-700" id="statHolHours">0</p>
+                        </div>
+                    </div>
+                    
+                    <!-- OT Stats Row -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-red-50 rounded-xl p-4 shadow-sm border border-red-100">
+                            <p class="text-sm text-red-600 mb-1">Overtime Hours</p>
+                            <p class="text-2xl font-bold text-red-700" id="statOTHours">0</p>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <p class="text-sm text-gray-500 mb-1">Unique Employees</p>
+                            <p class="text-2xl font-bold text-gray-800" id="statUniqueEmployees">0</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Pay Type Legend -->
+                    <div class="flex flex-wrap gap-4 mb-6">
+                        <div class="flex items-center">
+                            <div class="w-4 h-4 rounded bg-gray-200 mr-2"></div>
+                            <span class="text-sm text-gray-600">Regular</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-4 h-4 rounded bg-green-200 mr-2"></div>
+                            <span class="text-sm text-gray-600">PTO</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-4 h-4 rounded bg-amber-200 mr-2"></div>
+                            <span class="text-sm text-gray-600">Holiday</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-4 h-4 rounded bg-red-200 mr-2"></div>
+                            <span class="text-sm text-gray-600">Overtime</span>
+                        </div>
+                    </div>
+
+                    <!-- Branch/Division Stats -->
+                    <div class="space-y-4">
+                        <!-- By Branch -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <button onclick="toggleSection('branchSection')" class="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                <h4 class="font-semibold text-gray-800 flex items-center">
+                                    <svg id="branchSectionChevron" class="w-5 h-5 mr-2 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    </svg>
+                                    Hours by Branch
+                                </h4>
+                            </button>
+                            <div id="branchSection" class="px-5 pb-5">
+                                <div id="branchStats" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- By Division -->
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <button onclick="toggleSection('divisionSection')" class="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                                <h4 class="font-semibold text-gray-800 flex items-center">
+                                    <svg id="divisionSectionChevron" class="w-5 h-5 mr-2 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    <svg class="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                    </svg>
+                                    Hours by Division
+                                </h4>
+                            </button>
+                            <div id="divisionSection" class="px-5 pb-5">
+                                <div id="divisionStats" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Employees Under 40 Hours -->
+                        <div class="bg-white rounded-xl shadow-sm border border-amber-200 overflow-hidden">
+                            <button onclick="toggleSection('under40Section')" class="w-full p-5 flex items-center justify-between hover:bg-amber-50 transition-colors">
+                                <h4 class="font-semibold text-amber-800 flex items-center">
+                                    <svg id="under40SectionChevron" class="w-5 h-5 mr-2 text-amber-500 transition-transform -rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    <svg class="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Employees Under 40 Hours
+                                    <span id="under40Count" class="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-sm rounded-full">0</span>
+                                </h4>
+                            </button>
+                            <div id="under40Section" class="px-5 pb-5 hidden">
+                                <div id="under40Stats" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Employees With No Hours -->
+                        <div class="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
+                            <button onclick="toggleSection('noHoursSection')" class="w-full p-5 flex items-center justify-between hover:bg-red-50 transition-colors">
+                                <h4 class="font-semibold text-red-800 flex items-center">
+                                    <svg id="noHoursSectionChevron" class="w-5 h-5 mr-2 text-red-500 transition-transform -rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    <svg class="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
+                                    </svg>
+                                    Employees With No Hours
+                                    <span id="noHoursCount" class="ml-2 px-2 py-0.5 bg-red-100 text-red-700 text-sm rounded-full">0</span>
+                                </h4>
+                            </button>
+                            <div id="noHoursSection" class="px-5 pb-5 hidden">
+                                <div id="noHoursStats" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Full Preview Table -->
+            <div id="previewSection" class="hidden border-t border-gray-100">
+                <div class="p-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold text-gray-800 flex items-center">
+                            <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Full Data Preview
+                        </h3>
+                        <div class="flex items-center gap-4">
+                            <!-- Search -->
+                            <div class="relative">
+                                <input type="text" id="searchInput" placeholder="Search employees..." 
+                                    class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm w-64"
+                                    onkeyup="filterTable()">
+                                <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                            <!-- Filter by Pay Type -->
+                            <select id="payTypeFilter" onchange="filterTable()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">All Pay Types</option>
+                                <option value="REG">Regular</option>
+                                <option value="PTO">PTO</option>
+                                <option value="HOL">Holiday</option>
+                                <option value="OT">Overtime</option>
+                            </select>
+                            <!-- Filter by Branch -->
+                            <select id="branchFilter" onchange="filterTable()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">All Branches</option>
+                            </select>
+                            <!-- Filter by Division -->
+                            <select id="divisionFilter" onchange="filterTable()" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm">
+                                <option value="">All Divisions</option>
+                            </select>
+                            <!-- Filter by Warnings -->
+                            <select id="warningFilter" onchange="filterTable()" class="px-4 py-2 border border-amber-300 bg-amber-50 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-sm">
+                                <option value="">All Records</option>
+                                <option value="warnings">⚠️ Warnings Only</option>
+                                <option value="no-warnings">No Warnings</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container border border-gray-200 rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50 sticky-header">
+                                <tr id="previewHead"></tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200" id="previewBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="flex justify-between items-center mt-4">
+                        <p id="previewCount" class="text-sm text-gray-500"></p>
+                        <p id="filteredCount" class="text-sm text-gray-500"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-slate-400 text-sm">
+            <p>Encore Landscape Management - Payroll Processor</p>
+        </div>
+    </div>
+
+    <script>
+        // Data storage
+        let ptoData = [];
+        let dataDumpData = [];
+        let employeeData = [];
+        let outputData = [];
+        let allBranches = new Set();
+        let allDivisions = new Set();
+        
+        // Slack webhook configuration - map Branch + Division to webhook URLs
+        const slackWebhooks = {
+            'Corporate|Arbor': 'SLACK_WEBHOOK_PLACEHOLDER'
+            // Add more mappings as needed:
+            // 'Las Vegas|Maintenance': 'https://hooks.slack.com/services/...',
+            // 'Phoenix - North|Irrigation': 'https://hooks.slack.com/services/...',
+        };
+        
+        // Get Slack webhook for a branch/division combo
+        function getSlackWebhook(branch, division) {
+            return slackWebhooks[`${branch}|${division}`] || null;
+        }
+        
+        // Send message to Slack
+        async function sendToSlack(branch, division, employees, alertType = 'no-hours') {
+            const webhook = getSlackWebhook(branch, division);
+            if (!webhook) {
+                alert(`No Slack webhook configured for ${branch} - ${division}`);
+                return;
+            }
+            
+            const payPeriodDate = document.getElementById('payPeriodDate').value;
+            const { startDate, endDate } = getPayPeriodRange(payPeriodDate);
+            const startStr = startDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+            const endStr = endDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+            
+            let title, employeeList;
+            if (alertType === 'no-hours') {
+                title = `⚠️ ${division} (${branch}) - No Hours Alert`;
+                employeeList = employees.map(emp => `• ${emp.name}`).join('\n');
+            } else if (alertType === 'under-40') {
+                title = `⚠️ ${division} (${branch}) - Under 40 Hours Alert`;
+                employeeList = employees.map(emp => `• ${emp.name} - ${emp.totalHours.toFixed(1)} hrs`).join('\n');
+            }
+            
+            const messageText = `${title}\n\nPay period: ${startStr} - ${endStr}\n\nThe following employees ${alertType === 'no-hours' ? 'have no hours' : 'are under 40 hours'}:\n${employeeList}`;
+            
+            const message = { text: messageText };
+            
+            try {
+                // Try using the API route first (works when deployed to Vercel)
+                const apiResponse = await fetch('/api/slack', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ webhook, message })
+                });
+                
+                if (apiResponse.ok) {
+                    alert('✅ Message sent to Slack!');
+                    return;
+                }
+            } catch (apiErr) {
+                // API route not available, try direct (will likely fail due to CORS)
+                console.log('API route not available, trying direct...');
+            }
+            
+            try {
+                // Try direct webhook (works in some environments)
+                await fetch(webhook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    mode: 'no-cors',
+                    body: JSON.stringify(message)
+                });
+                alert('✅ Message sent to Slack!\n\n(Note: Unable to confirm delivery due to CORS)');
+            } catch (err) {
+                // Fallback: show message to copy
+                if (confirm('Could not send to Slack. Copy message to clipboard instead?')) {
+                    navigator.clipboard.writeText(messageText);
+                    alert('Message copied to clipboard!');
+                }
+            }
+        }
+        
+        // Get pay period range helper
+        function getPayPeriodRange(dateStr) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const date = new Date(year, month - 1, day);
+            const dayOfWeek = date.getDay();
+            const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            const startDate = new Date(date);
+            startDate.setDate(date.getDate() - daysToMonday);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            return { startDate, endDate };
+        }
+        
+        // Helper to trigger Slack alert from stored data
+        function sendSlackAlert(dataId, alertType) {
+            const data = window[dataId];
+            if (!data) {
+                alert('Error: Could not find employee data');
+                return;
+            }
+            
+            const employees = alertType === 'no-hours' ? data.noHours : data.under40;
+            if (employees.length === 0) {
+                alert('No employees to send');
+                return;
+            }
+            
+            sendToSlack(data.branch, data.division, employees, alertType);
+        }
+
+        // Helper function to format numbers with commas
+        function formatNumber(num) {
+            return num.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+        }
+
+        // Helper function to derive OT Payroll Item from Primary Earning Item
+        function getOTPayrollItem(primaryEarningItem) {
+            if (!primaryEarningItem) return '';
+            // Replace "Reg Pay" with "OT Pay" to get the overtime version
+            return primaryEarningItem.replace('Reg Pay', 'OT Pay');
+        }
+
+        // Toggle section visibility (Branch/Division main sections)
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const chevron = document.getElementById(sectionId + 'Chevron');
+            
+            if (section.classList.contains('hidden')) {
+                section.classList.remove('hidden');
+                chevron.classList.remove('-rotate-180');
+            } else {
+                section.classList.add('hidden');
+                chevron.classList.add('-rotate-180');
+            }
+        }
+
+        // Toggle individual row expansion (for drill-down)
+        function toggleRow(rowId) {
+            const row = document.getElementById(rowId);
+            const chevron = document.getElementById('chevron_' + rowId);
+            
+            if (row.classList.contains('hidden')) {
+                row.classList.remove('hidden');
+                chevron.classList.remove('-rotate-90');
+                chevron.classList.add('rotate-0');
+            } else {
+                row.classList.add('hidden');
+                chevron.classList.add('-rotate-90');
+                chevron.classList.remove('rotate-0');
+            }
+        }
+
+        // File input handlers
+        document.getElementById('ptoFile').addEventListener('change', (e) => handleFileUpload(e, 'pto'));
+        document.getElementById('dataDumpFile').addEventListener('change', (e) => handleFileUpload(e, 'dataDump'));
+        document.getElementById('employeeFile').addEventListener('change', (e) => handleFileUpload(e, 'employee'));
+
+        function handleFileUpload(event, type) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const fileName = file.name.toLowerCase();
+            
+            // Determine which dropzone to update based on type
+            const dropzoneMap = {
+                'pto': { dropzone: 'ptoDropzone', icon: 'ptoIcon', status: 'ptoStatus', expected: 'Aspire Time Entry Grid Export (.xlsx)' },
+                'dataDump': { dropzone: 'dataDumpDropzone', icon: 'dataDumpIcon', status: 'dataDumpStatus', expected: 'Aspire Weekly Hours Data Dump (.csv)' },
+                'employee': { dropzone: 'employeeDropzone', icon: 'employeeIcon', status: 'employeeStatus', expected: 'NetSuite Employee Export (.xls)' }
+            };
+            const dz = dropzoneMap[type];
+
+            try {
+                // Check if it's an XLS file (NetSuite XML format)
+                if (fileName.endsWith('.xls') && !fileName.endsWith('.xlsx')) {
+                    const reader = new FileReader();
+                    reader.onerror = function() {
+                        updateDropzone(dz.dropzone, dz.icon, dz.status, `⚠️ Error reading file. Please try again.`, false);
+                    };
+                    reader.onload = function(e) {
+                        try {
+                            const content = e.target.result;
+                            const data = parseNetSuiteXLS(content);
+                            
+                            if (type === 'employee') {
+                                employeeData = data;
+                                const validation = validateEmployeeFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            } else {
+                                // Wrong file type for this upload
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, 
+                                    `⚠️ Wrong file type (.xls)\n\nExpected: ${dz.expected}\n\nThis looks like a NetSuite export. Use it in the Employee List upload instead.`, false);
+                            }
+                        } catch (err) {
+                            updateDropzone(dz.dropzone, dz.icon, dz.status, `⚠️ Error parsing file: ${err.message}`, false);
+                        }
+                        updateProcessButton();
+                    };
+                    reader.readAsText(file);
+                } 
+                // Check if it's an XLSX file (modern Excel format)
+                else if (fileName.endsWith('.xlsx')) {
+                    const reader = new FileReader();
+                    reader.onerror = function() {
+                        updateDropzone(dz.dropzone, dz.icon, dz.status, `⚠️ Error reading file. Please try again.`, false);
+                    };
+                    reader.onload = async function(e) {
+                        try {
+                            const content = e.target.result;
+                            const data = await parseXLSX(content);
+                            
+                            if (type === 'pto') {
+                                ptoData = data;
+                                const validation = validatePTOFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            } else if (type === 'dataDump') {
+                                dataDumpData = data;
+                                const validation = validateDataDumpFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            } else if (type === 'employee') {
+                                employeeData = data;
+                                const validation = validateEmployeeFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            }
+                        } catch (err) {
+                            updateDropzone(dz.dropzone, dz.icon, dz.status, `⚠️ Error parsing Excel file: ${err.message}`, false);
+                        }
+                        updateProcessButton();
+                    };
+                    reader.readAsArrayBuffer(file);
+                }
+                // CSV files
+                else if (fileName.endsWith('.csv')) {
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            const data = results.data;
+                            
+                            if (type === 'pto') {
+                                ptoData = data;
+                                const validation = validatePTOFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            } else if (type === 'dataDump') {
+                                dataDumpData = data;
+                                const validation = validateDataDumpFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            } else if (type === 'employee') {
+                                employeeData = data;
+                                const validation = validateEmployeeFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            }
+                            
+                            updateProcessButton();
+                        },
+                        error: function(err) {
+                            updateDropzone(dz.dropzone, dz.icon, dz.status, `⚠️ Error parsing CSV: ${err.message}`, false);
+                            updateProcessButton();
+                        }
+                    });
+                }
+                // Unsupported file type
+                else {
+                    const ext = fileName.split('.').pop() || 'unknown';
+                    updateDropzone(dz.dropzone, dz.icon, dz.status, 
+                        `⚠️ Unsupported file type (.${ext})\n\nExpected: ${dz.expected}\n\nSupported formats: .csv, .xls, .xlsx`, false);
+                    updateProcessButton();
+                }
+            } catch (err) {
+                updateDropzone(dz.dropzone, dz.icon, dz.status, `⚠️ Unexpected error: ${err.message}`, false);
+                updateProcessButton();
+            }
+        }
+
+        // Parse XLSX (modern Excel) format
+        async function parseXLSX(arrayBuffer) {
+            const zip = await JSZip.loadAsync(arrayBuffer);
+            
+            // Read shared strings
+            const sharedStrings = [];
+            const sharedStringsFile = zip.file('xl/sharedStrings.xml');
+            if (sharedStringsFile) {
+                const ssContent = await sharedStringsFile.async('string');
+                const parser = new DOMParser();
+                const ssDoc = parser.parseFromString(ssContent, 'text/xml');
+                const tElements = ssDoc.getElementsByTagName('t');
+                for (let t of tElements) {
+                    sharedStrings.push(t.textContent || '');
+                }
+            }
+            
+            // Read sheet1
+            const sheetFile = zip.file('xl/worksheets/sheet1.xml');
+            if (!sheetFile) return [];
+            
+            const sheetContent = await sheetFile.async('string');
+            const parser = new DOMParser();
+            const sheetDoc = parser.parseFromString(sheetContent, 'text/xml');
+            
+            const rows = sheetDoc.getElementsByTagName('row');
+            if (rows.length === 0) return [];
+            
+            // Parse headers from first row
+            const headers = [];
+            const headerRow = rows[0];
+            const headerCells = headerRow.getElementsByTagName('c');
+            
+            for (let cell of headerCells) {
+                const cellType = cell.getAttribute('t');
+                const valueElem = cell.getElementsByTagName('v')[0];
+                
+                if (valueElem) {
+                    if (cellType === 's') {
+                        const idx = parseInt(valueElem.textContent);
+                        headers.push(sharedStrings[idx] || '');
+                    } else {
+                        headers.push(valueElem.textContent || '');
+                    }
+                } else {
+                    headers.push('');
+                }
+            }
+            
+            // Parse data rows
+            const result = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagName('c');
+                const rowData = {};
+                
+                // Initialize all headers with empty values
+                headers.forEach(h => rowData[h] = '');
+                
+                for (let cell of cells) {
+                    const cellRef = cell.getAttribute('r');
+                    const colLetter = cellRef.replace(/[0-9]/g, '');
+                    const colIndex = colLetterToIndex(colLetter);
+                    
+                    const cellType = cell.getAttribute('t');
+                    const valueElem = cell.getElementsByTagName('v')[0];
+                    
+                    let value = '';
+                    if (valueElem) {
+                        if (cellType === 's') {
+                            const idx = parseInt(valueElem.textContent);
+                            value = sharedStrings[idx] || '';
+                        } else {
+                            value = valueElem.textContent || '';
+                        }
+                    }
+                    
+                    if (colIndex < headers.length) {
+                        rowData[headers[colIndex]] = value;
+                    }
+                }
+                
+                // Map columns to expected format if this looks like Aspire PTO export
+                const mappedRow = mapAspirePTORow(rowData);
+                result.push(mappedRow);
+            }
+            
+            return result;
+        }
+        
+        // Convert column letter to index (A=0, B=1, AA=26, etc.)
+        function colLetterToIndex(letters) {
+            let index = 0;
+            for (let i = 0; i < letters.length; i++) {
+                index = index * 26 + (letters.charCodeAt(i) - 64);
+            }
+            return index - 1;
+        }
+        
+        // Map Aspire PTO export row to expected format
+        function mapAspirePTORow(row) {
+            // Check if this is the direct Aspire export format
+            if (row['Work Date'] !== undefined && row['Employee #'] !== undefined) {
+                // Convert date format from MM/DD/YY to M/D/YYYY
+                let workDate = row['Work Date'] || '';
+                if (workDate && workDate.includes('/')) {
+                    const parts = workDate.split('/');
+                    if (parts.length === 3) {
+                        let year = parts[2];
+                        // Handle 2-digit year
+                        if (year.length === 2) {
+                            year = (parseInt(year) > 50 ? '19' : '20') + year;
+                        }
+                        workDate = `${parseInt(parts[0])}/${parseInt(parts[1])}/${year}`;
+                    }
+                }
+                
+                return {
+                    'Employee #': row['Employee #'] || '',
+                    'First Name': row['First Name'] || '',
+                    'Last Name': row['Last Name'] || '',
+                    'Work Date': workDate,
+                    'Hours': row['Hours'] || '0',
+                    'OT Hours': row['OT Hours'] || '0',
+                    'Division': row['Division'] || '',
+                    'Branch': row['Branch'] || '',
+                    'Pay Code': row['Pay Code'] || '',
+                    'Service Name': row['Service Name'] || '',
+                    'Work Ticket #': row['Work Ticket #'] || ''
+                };
+            }
+            
+            // Return as-is if already in expected format
+            return row;
+        }
+
+        // Parse NetSuite XLS (XML format) and convert to standard format
+        function parseNetSuiteXLS(xmlContent) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xmlContent, 'text/xml');
+            
+            // Define namespace
+            const ns = 'urn:schemas-microsoft-com:office:spreadsheet';
+            
+            // Get all rows
+            const rows = doc.getElementsByTagNameNS(ns, 'Row');
+            if (rows.length === 0) return [];
+            
+            // Get headers from first row
+            const headerRow = rows[0];
+            const headerCells = headerRow.getElementsByTagNameNS(ns, 'Cell');
+            const headers = [];
+            for (let cell of headerCells) {
+                const data = cell.getElementsByTagNameNS(ns, 'Data')[0];
+                headers.push(data ? data.textContent : '');
+            }
+            
+            // Map data rows
+            const result = [];
+            for (let i = 1; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.getElementsByTagNameNS(ns, 'Cell');
+                const values = [];
+                
+                let cellIndex = 0;
+                for (let cell of cells) {
+                    // Handle ss:Index attribute for skipped cells
+                    const indexAttr = cell.getAttribute('ss:Index');
+                    if (indexAttr) {
+                        const targetIndex = parseInt(indexAttr) - 1;
+                        while (cellIndex < targetIndex) {
+                            values.push('');
+                            cellIndex++;
+                        }
+                    }
+                    
+                    const data = cell.getElementsByTagNameNS(ns, 'Data')[0];
+                    values.push(data ? data.textContent : '');
+                    cellIndex++;
+                }
+                
+                // Fill remaining empty cells
+                while (values.length < headers.length) {
+                    values.push('');
+                }
+                
+                // Create object with mapped fields
+                const rowObj = {};
+                headers.forEach((h, idx) => {
+                    rowObj[h] = values[idx] || '';
+                });
+                
+                // Map NetSuite columns to expected format
+                const mappedRow = mapNetSuiteEmployee(rowObj);
+                if (mappedRow) {
+                    result.push(mappedRow);
+                }
+            }
+            
+            return result;
+        }
+
+        // Map NetSuite employee export columns to expected format
+        function mapNetSuiteEmployee(row) {
+            // Get the External ID (Aspire ID)
+            const externalId = row['External ID'];
+            if (!externalId) return null;
+            
+            // Get job title and derive Primary Earning Item
+            const jobTitle = row['Job Title Dropdown'] || '';
+            const earningType = row['Primary Earning Type'] || '';
+            const primaryEarningItem = derivePrimaryEarningItem(jobTitle, earningType);
+            
+            return {
+                'EXTERNAL ID - ASPIRE ID': externalId,
+                'EMPLOYEE ID': row['Name'] || '',
+                'First Name': row['First Name'] || '',
+                'Last Name': row['Last Name'] || '',
+                'Primary Earning Item': primaryEarningItem,
+                'Branche': row['Branch'] || row['Workplace'] || '',
+                'Division': row['Department'] || ''
+            };
+        }
+
+        // Derive Primary Earning Item from Job Title
+        function derivePrimaryEarningItem(jobTitle, earningType) {
+            if (!jobTitle) return '';
+            
+            // If salary employee, return salary type
+            if (earningType === 'Salary') {
+                const salaryMap = {
+                    'Branch Coordinator': 'Salary - Administrative',
+                    'Enhancement Technician': 'Salary - Specialist'
+                };
+                return salaryMap[jobTitle] || 'Salary - Specialist';
+            }
+            
+            // Map job titles to payroll item suffixes
+            const jobTitleMap = {
+                'Maint Field Labor': 'Maint FL',
+                'Maint Crew Leader': 'Maint CL',
+                'Maint Onsite': 'Maint Onsite',
+                'Enh Field Labor': 'Enh FL',
+                'Enh Crew Leader': 'Enh CL',
+                'Arbor Crew Leader': 'Arb CL',
+                'Arbor Climber': 'Arb Climber',
+                'Arbor Groundsman': 'Arb GM',
+                'Irrigation Technician': 'Irrigation T',
+                'Spray Technician': 'Spray Tech',
+                'Mechanic': 'Mechanic'
+            };
+            
+            const suffix = jobTitleMap[jobTitle];
+            if (suffix) {
+                return `Reg Pay (direct) - ${suffix}`;
+            }
+            
+            // Fallback: try to create a reasonable suffix
+            return `Reg Pay (direct) - ${jobTitle}`;
+        }
+
+        function updateDropzone(dropzoneId, iconId, statusId, statusText, isValid = true) {
+            const dropzone = document.getElementById(dropzoneId);
+            const icon = document.getElementById(iconId);
+            const status = document.getElementById(statusId);
+            
+            // Reset classes
+            dropzone.classList.remove('border-gray-300', 'hover:border-blue-400', 'border-green-400', 'bg-green-50', 'border-red-400', 'bg-red-50');
+            
+            if (isValid) {
+                dropzone.classList.add('border-green-400', 'bg-green-50');
+                icon.innerHTML = `<svg class="w-12 h-12 mx-auto text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>`;
+                status.innerHTML = `<span class="text-green-600 font-medium">${statusText}</span>`;
+            } else {
+                dropzone.classList.add('border-red-400', 'bg-red-50');
+                icon.innerHTML = `<svg class="w-12 h-12 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>`;
+                // Format multi-line error messages
+                const formattedMessage = statusText.replace(/\n/g, '<br>');
+                status.innerHTML = `<div class="text-red-600 font-medium text-left text-xs leading-relaxed">${formattedMessage}</div>`;
+            }
+            
+            status.className = 'mt-2 text-sm';
+        }
+
+        // Validate Employee List file
+        function validateEmployeeFile(data) {
+            if (!data || data.length === 0) {
+                return { valid: false, message: '⚠️ File is empty or could not be parsed' };
+            }
+            
+            const firstRow = data[0];
+            const columns = Object.keys(firstRow);
+            
+            const hasNetSuiteFormat = firstRow.hasOwnProperty('EXTERNAL ID - ASPIRE ID') || 
+                                      firstRow.hasOwnProperty('External ID');
+            const hasEmployeeId = firstRow.hasOwnProperty('EMPLOYEE ID') || 
+                                  firstRow.hasOwnProperty('Name');
+            
+            if (!hasNetSuiteFormat && !hasEmployeeId) {
+                return { 
+                    valid: false, 
+                    message: `⚠️ Wrong file format. Missing required columns.\n\nExpected: NetSuite Employee export (.xls) with "External ID" column\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
+                };
+            }
+            
+            if (!hasNetSuiteFormat) {
+                return { 
+                    valid: false, 
+                    message: `⚠️ Missing "External ID" or "EXTERNAL ID - ASPIRE ID" column.\n\nThis should be the NetSuite Employee export file.`
+                };
+            }
+            
+            return { valid: true, message: `✓ ${data.length} employees loaded` };
+        }
+
+        // Validate PTO/Time Entry file
+        function validatePTOFile(data) {
+            if (!data || data.length === 0) {
+                return { valid: false, message: '⚠️ File is empty or could not be parsed' };
+            }
+            
+            const firstRow = data[0];
+            const columns = Object.keys(firstRow);
+            
+            const hasEmployeeNum = firstRow.hasOwnProperty('Employee #');
+            const hasWorkDate = firstRow.hasOwnProperty('Work Date');
+            const hasHours = firstRow.hasOwnProperty('Hours');
+            
+            const missing = [];
+            if (!hasEmployeeNum) missing.push('"Employee #"');
+            if (!hasWorkDate) missing.push('"Work Date"');
+            if (!hasHours) missing.push('"Hours"');
+            
+            if (missing.length > 0) {
+                return { 
+                    valid: false, 
+                    message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Aspire Time Entry Grid Export (.xlsx)\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
+                };
+            }
+            
+            return { valid: true, message: `✓ ${data.length} PTO/Holiday records loaded` };
+        }
+
+        // Validate Data Dump file
+        function validateDataDumpFile(data) {
+            if (!data || data.length === 0) {
+                return { valid: false, message: '⚠️ File is empty or could not be parsed' };
+            }
+            
+            const firstRow = data[0];
+            const columns = Object.keys(firstRow);
+            
+            const hasEmployeeNum = firstRow.hasOwnProperty('Employee Number');
+            const hasTotal = firstRow.hasOwnProperty('Total');
+            
+            const missing = [];
+            if (!hasEmployeeNum) missing.push('"Employee Number"');
+            if (!hasTotal) missing.push('"Total"');
+            
+            if (missing.length > 0) {
+                return { 
+                    valid: false, 
+                    message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Aspire Weekly Hours Data Dump (.csv)\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
+                };
+            }
+            
+            return { valid: true, message: `✓ ${data.length} employees loaded` };
+        }
+
+        function updateProcessButton() {
+            const btn = document.getElementById('processBtn');
+            
+            // Check if data exists and is valid
+            const ptoValid = ptoData.length > 0 && validatePTOFile(ptoData).valid;
+            const dataDumpValid = dataDumpData.length > 0 && validateDataDumpFile(dataDumpData).valid;
+            const hasValidData = ptoValid || dataDumpValid;
+            
+            const employeeValid = employeeData.length > 0 && validateEmployeeFile(employeeData).valid;
+            const hasPayPeriod = document.getElementById('payPeriodDate').value !== '';
+            
+            updateMessages();
+            
+            if (hasValidData && employeeValid && hasPayPeriod) {
+                btn.disabled = false;
+                btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.add('bg-blue-600', 'hover:bg-blue-700', 'shadow-lg', 'hover:shadow-xl');
+            } else {
+                btn.disabled = true;
+                btn.classList.add('bg-gray-400', 'cursor-not-allowed');
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'shadow-lg', 'hover:shadow-xl');
+            }
+        }
+
+        function updateMessages() {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+            
+            const hasPayPeriod = document.getElementById('payPeriodDate').value !== '';
+            
+            if (employeeData.length === 0) {
+                container.innerHTML += `
+                    <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start">
+                        <svg class="w-5 h-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-yellow-800">Employee List Required</p>
+                            <p class="text-sm text-yellow-700">Please upload the NetSuite Employee List to map employee data correctly.</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (!hasPayPeriod) {
+                container.innerHTML += `
+                    <div class="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start">
+                        <svg class="w-5 h-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-yellow-800">Pay Period Date Required</p>
+                            <p class="text-sm text-yellow-700">Please select a date within the pay period to filter PTO/Holiday entries correctly.</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function buildEmployeeMap() {
+            const map = new Map();
+            employeeData.forEach(emp => {
+                const aspireId = String(emp['EXTERNAL ID - ASPIRE ID'] || '').trim();
+                if (aspireId) {
+                    map.set(aspireId, emp);
+                }
+            });
+            return map;
+        }
+
+        function getPayrollItem(primaryEarningItem, payCode) {
+            if (!primaryEarningItem) return '';
+            
+            const match = primaryEarningItem.match(/- (.+)$/);
+            const jobType = match ? match[1] : '';
+            
+            if (payCode === 'PTO' || payCode === 'Hol') {
+                return `PTO (direct) - ${jobType}`;
+            }
+            
+            return primaryEarningItem;
+        }
+
+        function getPayType(payCode, payrollItem) {
+            if (payCode === 'PTO') return 'PTO';
+            if (payCode === 'Hol') return 'HOL';
+            if (payrollItem && payrollItem.toLowerCase().includes('ot pay')) return 'OT';
+            return 'REG';
+        }
+
+        function formatDate(dateInput) {
+            if (!dateInput) return '';
+            
+            if (dateInput.includes('-')) {
+                const [year, month, day] = dateInput.split('-');
+                return `${parseInt(month)}/${parseInt(day)}/${year}`;
+            }
+            
+            const parts = dateInput.split('/');
+            if (parts.length === 3) {
+                return `${parseInt(parts[0])}/${parseInt(parts[1])}/${parts[2]}`;
+            }
+            
+            return dateInput;
+        }
+
+        function getConcatenate(division, location, payCode) {
+            const suffix = (payCode === 'PTO' || payCode === 'Hol') ? 'PT' : 'Re';
+            return `${division} ${location} ${suffix}`;
+        }
+
+        function processData() {
+            const btn = document.getElementById('processBtn');
+            btn.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>Processing...`;
+            
+            setTimeout(() => {
+                outputData = [];
+                allBranches = new Set();
+                allDivisions = new Set();
+                const employeeMap = buildEmployeeMap();
+                const notFoundEmployees = new Set();
+                const payPeriodEndDate = document.getElementById('payPeriodDate').value;
+                let skippedOutsidePayPeriod = 0;
+
+                // Calculate pay period date range (Monday through Sunday ending on the selected date)
+                // The pay period end date should be a Sunday, and we go back to Monday
+                let payPeriodStart = null;
+                let payPeriodEnd = null;
+                
+                if (payPeriodEndDate) {
+                    // Parse the selected date
+                    const [year, month, day] = payPeriodEndDate.split('-').map(Number);
+                    payPeriodEnd = new Date(year, month - 1, day);
+                    
+                    // Calculate the Monday of that week (go back to Monday)
+                    const dayOfWeek = payPeriodEnd.getDay(); // 0 = Sunday, 1 = Monday, etc.
+                    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                    payPeriodStart = new Date(payPeriodEnd);
+                    payPeriodStart.setDate(payPeriodEnd.getDate() - daysToMonday);
+                    
+                    // Set end to Sunday (if not already)
+                    if (dayOfWeek !== 0) {
+                        payPeriodEnd.setDate(payPeriodEnd.getDate() + (7 - dayOfWeek));
+                    }
+                    
+                    console.log('Pay Period:', payPeriodStart.toDateString(), 'to', payPeriodEnd.toDateString());
+                }
+
+                // Helper function to check if a date is within the pay period
+                function isWithinPayPeriod(dateStr) {
+                    if (!payPeriodStart || !payPeriodEnd || !dateStr) return true; // If no date filter, include all
+                    
+                    // Parse date string (M/D/YYYY format)
+                    const parts = dateStr.split('/');
+                    if (parts.length !== 3) return true;
+                    
+                    const [m, d, y] = parts.map(Number);
+                    const workDate = new Date(y, m - 1, d);
+                    
+                    return workDate >= payPeriodStart && workDate <= payPeriodEnd;
+                }
+
+                // Process Data Dump (Regular hours)
+                // IMPORTANT: Data Dump totals INCLUDE PTO/Holiday hours
+                // We need to subtract PTO/Holiday to get actual Regular hours
+                
+                // First, build a map of PTO/Holiday hours by employee from the PTO Dump
+                const employeePTOHours = new Map(); // aspireId -> { pto: X, hol: Y }
+                
+                ptoData.forEach(record => {
+                    const aspireId = String(record['Employee #'] || '').trim();
+                    if (!aspireId) return;
+                    
+                    const workDate = record['Work Date'] || '';
+                    if (!isWithinPayPeriod(workDate)) return;
+                    
+                    const hours = parseFloat(record['Hours'] || '0');
+                    if (hours <= 0) return;
+                    
+                    const payCode = (record['Pay Code'] || '').trim();
+                    
+                    if (!employeePTOHours.has(aspireId)) {
+                        employeePTOHours.set(aspireId, { pto: 0, hol: 0 });
+                    }
+                    
+                    const empHours = employeePTOHours.get(aspireId);
+                    if (payCode === 'PTO') {
+                        empHours.pto += hours;
+                    } else if (payCode === 'Hol') {
+                        empHours.hol += hours;
+                    }
+                });
+                
+                // Now process PTO Dump to create PTO/Holiday line items
+                ptoData.forEach(record => {
+                    const aspireId = String(record['Employee #'] || '').trim();
+                    if (!aspireId) return;
+
+                    const employee = employeeMap.get(aspireId);
+                    if (!employee) {
+                        notFoundEmployees.add(`${aspireId} (${record['First Name']} ${record['Last Name']})`);
+                        return;
+                    }
+
+                    // Check if work date is within pay period
+                    const workDate = record['Work Date'] || '';
+                    if (!isWithinPayPeriod(workDate)) {
+                        skippedOutsidePayPeriod++;
+                        return; // Skip entries outside the pay period
+                    }
+
+                    const hours = parseFloat(record['Hours'] || '0');
+                    const otHours = parseFloat(record['OT Hours'] || '0');
+                    if (hours <= 0 && otHours <= 0) return;
+
+                    const payCode = (record['Pay Code'] || '').trim();
+                    
+                    // Skip 'Reg' entries from PTO dump - these will come from Data Dump
+                    if (payCode === 'Reg' || payCode === '') return;
+                    
+                    const payrollItem = getPayrollItem(employee['Primary Earning Item'], payCode);
+                    const branch = employee['Branche'] || '';
+                    const division = employee['Division'] || '';
+                    
+                    allBranches.add(branch);
+                    allDivisions.add(division);
+
+                    // PTO/Holiday hours only
+                    if (hours > 0) {
+                        outputData.push({
+                            'Employee ID': employee['EMPLOYEE ID'],
+                            'Aspire ID': aspireId,
+                            'Aspire Name': `${record['Last Name']}, ${record['First Name']}`,
+                            'Date': formatDate(payPeriodEndDate || record['Work Date']),
+                            'Payroll Item': payrollItem,
+                            'Duration': hours.toFixed(2),
+                            'Location': branch,
+                            'Division': division,
+                            'Traditional name': `${employee['First Name']} ${employee['Last Name']}`,
+                            'Concatenate': getConcatenate(employee['Division'], branch, payCode),
+                            '_PayType': getPayType(payCode, payrollItem),
+                            '_PayCode': payCode
+                        });
+                    }
+
+                    // Overtime hours (from PTO dump if present)
+                    if (otHours > 0) {
+                        const otPayrollItem = getOTPayrollItem(employee['Primary Earning Item']);
+                        outputData.push({
+                            'Employee ID': employee['EMPLOYEE ID'],
+                            'Aspire ID': aspireId,
+                            'Aspire Name': `${record['Last Name']}, ${record['First Name']}`,
+                            'Date': formatDate(payPeriodEndDate || record['Work Date']),
+                            'Payroll Item': otPayrollItem,
+                            'Duration': otHours.toFixed(2),
+                            'Location': branch,
+                            'Division': employee['Division'],
+                            'Traditional name': `${employee['First Name']} ${employee['Last Name']}`,
+                            'Concatenate': getConcatenate(employee['Division'], branch, 'OT'),
+                            '_PayType': 'OT',
+                            '_PayCode': 'OT'
+                        });
+                    }
+                });
+
+                // Process Data Dump - subtract PTO/Holiday hours to get Regular hours
+                if (dataDumpData.length > 0) {
+                    const firstRecord = dataDumpData[0];
+                    const dateColumns = Object.keys(firstRecord).filter(key => 
+                        key.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d+\/\d+/)
+                    );
+
+                    dataDumpData.forEach(record => {
+                        const aspireId = String(record['Employee Number'] || '').trim();
+                        if (!aspireId) return;
+
+                        const employee = employeeMap.get(aspireId);
+                        if (!employee) {
+                            notFoundEmployees.add(`${aspireId} (${record['Employee Display Name'] || 'Unknown'})`);
+                            return;
+                        }
+
+                        let totalHours = 0;
+                        dateColumns.forEach(col => {
+                            const hours = parseFloat(record[col] || '0');
+                            if (hours > 0) totalHours += hours;
+                        });
+
+                        const otHours = parseFloat(record['OT'] || '0');
+                        const branch = employee['Branche'] || '';
+                        const division = employee['Division'] || '';
+                        
+                        allBranches.add(branch);
+                        allDivisions.add(division);
+
+                        // Subtract PTO/Holiday hours from total to get Regular hours
+                        const empPTOData = employeePTOHours.get(aspireId) || { pto: 0, hol: 0 };
+                        const ptoHoursToSubtract = empPTOData.pto + empPTOData.hol;
+                        const regularHours = totalHours - ptoHoursToSubtract;
+
+                        // Regular hours (total minus PTO/Holiday)
+                        if (regularHours > 0) {
+                            outputData.push({
+                                'Employee ID': employee['EMPLOYEE ID'],
+                                'Aspire ID': aspireId,
+                                'Aspire Name': record['Employee Display Name'] || '',
+                                'Date': formatDate(payPeriodEndDate),
+                                'Payroll Item': employee['Primary Earning Item'],
+                                'Duration': regularHours.toFixed(2),
+                                'Location': branch,
+                                'Division': employee['Division'],
+                                'Traditional name': `${employee['First Name']} ${employee['Last Name']}`,
+                                'Concatenate': getConcatenate(employee['Division'], branch, 'Reg'),
+                                '_PayType': 'REG',
+                                '_PayCode': 'Reg'
+                            });
+                        }
+
+                        // Overtime hours
+                        if (otHours > 0) {
+                            const otPayrollItem = getOTPayrollItem(employee['Primary Earning Item']);
+                            outputData.push({
+                                'Employee ID': employee['EMPLOYEE ID'],
+                                'Aspire ID': aspireId,
+                                'Aspire Name': record['Employee Display Name'] || '',
+                                'Date': formatDate(payPeriodEndDate),
+                                'Payroll Item': otPayrollItem,
+                                'Duration': otHours.toFixed(2),
+                                'Location': branch,
+                                'Division': employee['Division'],
+                                'Traditional name': `${employee['First Name']} ${employee['Last Name']}`,
+                                'Concatenate': getConcatenate(employee['Division'], branch, 'OT'),
+                                '_PayType': 'OT',
+                                '_PayCode': 'OT'
+                            });
+                        }
+                    });
+                }
+
+                // Sort output
+                outputData.sort((a, b) => a['Employee ID'].localeCompare(b['Employee ID']));
+
+                // Update messages
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                
+                // Show pay period info
+                if (payPeriodStart && payPeriodEnd) {
+                    const options = { weekday: 'short', month: 'short', day: 'numeric' };
+                    container.innerHTML += `
+                        <div class="mb-4 p-4 rounded-lg flex items-start bg-blue-50 border border-blue-200">
+                            <svg class="w-5 h-5 mr-3 mt-0.5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-blue-800">Pay Period: ${payPeriodStart.toLocaleDateString('en-US', options)} — ${payPeriodEnd.toLocaleDateString('en-US', options)}</p>
+                                <p class="text-sm mt-1 text-blue-700">Only PTO/Holiday entries within this date range are included.</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Show skipped entries info
+                if (skippedOutsidePayPeriod > 0) {
+                    container.innerHTML += `
+                        <div class="mb-4 p-4 rounded-lg flex items-start bg-gray-50 border border-gray-200">
+                            <svg class="w-5 h-5 mr-3 mt-0.5 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-gray-700">${skippedOutsidePayPeriod} PTO/Holiday entries skipped</p>
+                                <p class="text-sm mt-1 text-gray-600">These entries have work dates outside the selected pay period.</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                if (notFoundEmployees.size > 0) {
+                    const list = Array.from(notFoundEmployees).slice(0, 10).join(', ');
+                    const more = notFoundEmployees.size > 10 ? ` ... and ${notFoundEmployees.size - 10} more` : '';
+                    
+                    container.innerHTML += `
+                        <div class="mb-4 p-4 rounded-lg flex items-start bg-amber-50 border border-amber-200">
+                            <svg class="w-5 h-5 mr-3 mt-0.5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-amber-800">${notFoundEmployees.size} employees not found in NetSuite Employee List</p>
+                                <p class="text-sm mt-1 text-amber-700">${list}${more}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Show results
+                btn.textContent = 'Process Data';
+                
+                if (outputData.length > 0) {
+                    document.getElementById('downloadBtn').classList.remove('hidden');
+                    document.getElementById('downloadText').textContent = `Download CSV (${outputData.length} records)`;
+                    
+                    updateSummaryStats();
+                    populateBranchFilter();
+                    populateDivisionFilter();
+                    showPreview();
+                }
+            }, 100);
+        }
+
+        function updateSummaryStats() {
+            document.getElementById('summarySection').classList.remove('hidden');
+            
+            // Calculate totals
+            let regHours = 0, ptoHours = 0, holHours = 0, otHours = 0;
+            const branchData = {};
+            const divisionData = {};
+            const uniqueEmployees = new Set();
+            
+            outputData.forEach(row => {
+                const hours = parseFloat(row['Duration']) || 0;
+                const payType = row['_PayType'] || 'REG';
+                const branch = row['Location'] || 'Unknown';
+                const division = row['Division'] || 'Unknown';
+                const employeeId = row['Employee ID'];
+                
+                uniqueEmployees.add(employeeId);
+                
+                // By pay type
+                if (payType === 'REG') regHours += hours;
+                else if (payType === 'PTO') ptoHours += hours;
+                else if (payType === 'HOL') holHours += hours;
+                else if (payType === 'OT') otHours += hours;
+                
+                const payTypeKey = payType.toLowerCase();
+                
+                // By branch (with division breakdown)
+                if (!branchData[branch]) {
+                    branchData[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), divisions: {} };
+                }
+                if (branchData[branch].hasOwnProperty(payTypeKey)) {
+                    branchData[branch][payTypeKey] += hours;
+                }
+                branchData[branch].total += hours;
+                branchData[branch].employees.add(employeeId);
+                
+                // Track division within branch
+                if (!branchData[branch].divisions[division]) {
+                    branchData[branch].divisions[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                }
+                if (branchData[branch].divisions[division].hasOwnProperty(payTypeKey)) {
+                    branchData[branch].divisions[division][payTypeKey] += hours;
+                }
+                branchData[branch].divisions[division].total += hours;
+                branchData[branch].divisions[division].employees.add(employeeId);
+                
+                // By division (with branch breakdown)
+                if (!divisionData[division]) {
+                    divisionData[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), branches: {} };
+                }
+                if (divisionData[division].hasOwnProperty(payTypeKey)) {
+                    divisionData[division][payTypeKey] += hours;
+                }
+                divisionData[division].total += hours;
+                divisionData[division].employees.add(employeeId);
+                
+                // Track branch within division
+                if (!divisionData[division].branches[branch]) {
+                    divisionData[division].branches[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                }
+                if (divisionData[division].branches[branch].hasOwnProperty(payTypeKey)) {
+                    divisionData[division].branches[branch][payTypeKey] += hours;
+                }
+                divisionData[division].branches[branch].total += hours;
+                divisionData[division].branches[branch].employees.add(employeeId);
+            });
+            
+            // Calculate total hours
+            const totalHours = regHours + ptoHours + holHours + otHours;
+            
+            // Update overall stats
+            document.getElementById('statTotalRecords').textContent = outputData.length.toLocaleString();
+            document.getElementById('statTotalHours').textContent = formatNumber(totalHours);
+            document.getElementById('statRegHours').textContent = formatNumber(regHours);
+            document.getElementById('statPTOHours').textContent = formatNumber(ptoHours);
+            document.getElementById('statHolHours').textContent = formatNumber(holHours);
+            document.getElementById('statOTHours').textContent = formatNumber(otHours);
+            document.getElementById('statUniqueEmployees').textContent = uniqueEmployees.size.toLocaleString();
+            
+            // Calculate employees under 40 hours and no hours
+            // First, get total hours per employee with their branch/division info
+            const employeeHours = {};
+            outputData.forEach(row => {
+                const employeeId = row['Employee ID'];
+                const hours = parseFloat(row['Duration']) || 0;
+                const branch = row['Location'] || 'Unknown';
+                const division = row['Division'] || 'Unknown';
+                const name = row['Traditional name'] || row['Aspire Name'] || employeeId;
+                
+                if (!employeeHours[employeeId]) {
+                    employeeHours[employeeId] = { 
+                        name, 
+                        branch, 
+                        division, 
+                        totalHours: 0 
+                    };
+                }
+                employeeHours[employeeId].totalHours += hours;
+            });
+            
+            // Get all employees from employee list to find those with no hours
+            const allEmployeesInSystem = new Map();
+            employeeData.forEach(emp => {
+                const empId = emp['EMPLOYEE ID'];
+                if (empId) {
+                    allEmployeesInSystem.set(empId, {
+                        name: `${emp['First Name']} ${emp['Last Name']}`,
+                        branch: emp['Branche'] || 'Unknown',
+                        division: emp['Division'] || 'Unknown'
+                    });
+                }
+            });
+            
+            // Find employees under 40 hours (but > 0)
+            const under40 = Object.entries(employeeHours)
+                .filter(([id, data]) => data.totalHours > 0 && data.totalHours < 40)
+                .map(([id, data]) => ({ id, ...data }))
+                .sort((a, b) => a.totalHours - b.totalHours);
+            
+            // Find employees with no hours (in employee list but not in output)
+            const employeesWithHours = new Set(Object.keys(employeeHours));
+            const noHours = [];
+            allEmployeesInSystem.forEach((data, empId) => {
+                if (!employeesWithHours.has(empId)) {
+                    noHours.push({ id: empId, ...data, totalHours: 0 });
+                }
+            });
+            noHours.sort((a, b) => a.branch.localeCompare(b.branch) || a.name.localeCompare(b.name));
+            
+            // Update branch stats
+            const branchContainer = document.getElementById('branchStats');
+            branchContainer.innerHTML = Object.entries(branchData)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([branch, data]) => {
+                    const branchId = branch.replace(/[^a-zA-Z0-9]/g, '_');
+                    
+                    // Calculate under 40 and no hours for this branch
+                    const branchUnder40 = under40.filter(emp => emp.branch === branch).length;
+                    const branchNoHours = noHours.filter(emp => emp.branch === branch).length;
+                    
+                    const divisionsHtml = Object.entries(data.divisions)
+                        .sort((a, b) => b[1].total - a[1].total)
+                        .map(([div, divData]) => {
+                            // Calculate under 40 and no hours for this branch+division combo
+                            const divUnder40 = under40.filter(emp => emp.branch === branch && emp.division === div).length;
+                            const divNoHours = noHours.filter(emp => emp.branch === branch && emp.division === div).length;
+                            const divId = `branch_${branchId}_div_${div.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                            
+                            // Get employees for this branch+division
+                            const divEmployees = {};
+                            outputData.forEach(row => {
+                                if (row['Location'] === branch && row['Division'] === div) {
+                                    const empId = row['Employee ID'];
+                                    const hours = parseFloat(row['Duration']) || 0;
+                                    if (!divEmployees[empId]) {
+                                        divEmployees[empId] = {
+                                            name: row['Traditional name'] || row['Aspire Name'] || empId,
+                                            totalHours: 0
+                                        };
+                                    }
+                                    divEmployees[empId].totalHours += hours;
+                                }
+                            });
+                            
+                            // Add no-hours employees for this branch+division
+                            noHours.filter(emp => emp.branch === branch && emp.division === div).forEach(emp => {
+                                if (!divEmployees[emp.id]) {
+                                    divEmployees[emp.id] = { name: emp.name, totalHours: 0 };
+                                }
+                            });
+                            
+                            // Get lists for Slack
+                            const divNoHoursEmps = noHours.filter(emp => emp.branch === branch && emp.division === div);
+                            const divUnder40Emps = under40.filter(emp => emp.branch === branch && emp.division === div);
+                            const hasSlackWebhook = getSlackWebhook(branch, div) !== null;
+                            
+                            // Store employee data for Slack buttons
+                            const slackDataId = `slack_${branchId}_${div.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                            window[slackDataId] = { 
+                                branch, 
+                                division: div, 
+                                noHours: divNoHoursEmps,
+                                under40: divUnder40Emps
+                            };
+                            
+                            const employeesHtml = Object.entries(divEmployees)
+                                .sort((a, b) => a[1].name.localeCompare(b[1].name))
+                                .map(([empId, emp]) => {
+                                    const isUnder40 = emp.totalHours > 0 && emp.totalHours < 40;
+                                    const isNoHours = emp.totalHours === 0;
+                                    const bgClass = isNoHours ? 'bg-red-50 border-red-100' : (isUnder40 ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100');
+                                    const hoursClass = isNoHours ? 'bg-red-100 text-red-700' : (isUnder40 ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-700');
+                                    return `
+                                        <div class="flex items-center justify-between p-1.5 ${bgClass} rounded border">
+                                            <span class="text-xs text-gray-600">${emp.name}</span>
+                                            <span class="px-1.5 py-0.5 ${hoursClass} text-xs rounded">${formatNumber(emp.totalHours)} hrs</span>
+                                        </div>
+                                    `;
+                                }).join('');
+                            
+                            // Slack buttons HTML
+                            const slackButtonsHtml = hasSlackWebhook ? `
+                                <div class="flex gap-2 mb-2 pt-1">
+                                    ${divNoHoursEmps.length > 0 ? `
+                                        <button onclick="sendSlackAlert('${slackDataId}', 'no-hours')" class="flex items-center gap-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded transition-colors" title="Send no hours alert to Slack">
+                                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+                                            No Hours (${divNoHoursEmps.length})
+                                        </button>
+                                    ` : ''}
+                                    ${divUnder40Emps.length > 0 ? `
+                                        <button onclick="sendSlackAlert('${slackDataId}', 'under-40')" class="flex items-center gap-1 px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded transition-colors" title="Send under 40 hours alert to Slack">
+                                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+                                            Under 40 (${divUnder40Emps.length})
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            ` : '';
+                            
+                            return `
+                            <div class="border border-gray-200 rounded overflow-hidden">
+                                <button onclick="toggleRow('${divId}')" class="w-full flex items-center justify-between p-2 bg-white hover:bg-gray-50 transition-colors">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <svg id="chevron_${divId}" class="w-3 h-3 text-gray-400 transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                        <span class="text-sm text-gray-600 truncate">${div}</span>
+                                        <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded">${divData.employees.size}</span>
+                                        ${divUnder40 > 0 ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">${divUnder40} under 40</span>` : ''}
+                                        ${divNoHours > 0 ? `<span class="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded">${divNoHours} no hrs</span>` : ''}
+                                        ${hasSlackWebhook ? `<span class="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded" title="Slack integration available">📤</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 text-xs flex-shrink-0 ml-2">
+                                        <span class="px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded">${formatNumber(divData.reg)}</span>
+                                        ${divData.pto > 0 ? `<span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">${formatNumber(divData.pto)}</span>` : ''}
+                                        ${divData.hol > 0 ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">${formatNumber(divData.hol)}</span>` : ''}
+                                        ${divData.ot > 0 ? `<span class="px-1.5 py-0.5 bg-red-100 text-red-700 rounded">${formatNumber(divData.ot)}</span>` : ''}
+                                        <span class="font-semibold text-gray-700 ml-1">${formatNumber(divData.total)}</span>
+                                    </div>
+                                </button>
+                                <div id="${divId}" class="hidden p-2 pt-1 bg-gray-50 border-t border-gray-200 space-y-1 max-h-48 overflow-y-auto">
+                                    ${slackButtonsHtml}
+                                    ${employeesHtml}
+                                </div>
+                            </div>
+                        `}).join('');
+                    
+                    return `
+                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                            <button onclick="toggleRow('branch_${branchId}')" class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <svg id="chevron_branch_${branchId}" class="w-4 h-4 text-gray-400 transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    <span class="font-medium text-gray-700 truncate">${branch}</span>
+                                    <span class="px-2 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full flex-shrink-0">${data.employees.size} employees</span>
+                                    ${branchUnder40 > 0 ? `<span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full flex-shrink-0">${branchUnder40} under 40</span>` : ''}
+                                    ${branchNoHours > 0 ? `<span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full flex-shrink-0">${branchNoHours} no hrs</span>` : ''}
+                                </div>
+                                <div class="flex items-center gap-2 text-sm flex-shrink-0 ml-4">
+                                    <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded">${formatNumber(data.reg)} REG</span>
+                                    ${data.pto > 0 ? `<span class="px-2 py-1 bg-green-100 text-green-700 rounded">${formatNumber(data.pto)} PTO</span>` : ''}
+                                    ${data.hol > 0 ? `<span class="px-2 py-1 bg-amber-100 text-amber-700 rounded">${formatNumber(data.hol)} HOL</span>` : ''}
+                                    ${data.ot > 0 ? `<span class="px-2 py-1 bg-red-100 text-red-700 rounded">${formatNumber(data.ot)} OT</span>` : ''}
+                                    <span class="font-bold text-gray-800 ml-2">${formatNumber(data.total)}</span>
+                                </div>
+                            </button>
+                            <div id="branch_${branchId}" class="hidden p-3 pt-0 space-y-1.5 bg-gray-50 border-t border-gray-200">
+                                <p class="text-xs text-gray-500 font-medium pt-2 pb-1">Divisions:</p>
+                                ${divisionsHtml}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            
+            // Update division stats
+            const divisionContainer = document.getElementById('divisionStats');
+            divisionContainer.innerHTML = Object.entries(divisionData)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([division, data]) => {
+                    const divisionId = division.replace(/[^a-zA-Z0-9]/g, '_');
+                    
+                    // Calculate under 40 and no hours for this division
+                    const divUnder40 = under40.filter(emp => emp.division === division).length;
+                    const divNoHours = noHours.filter(emp => emp.division === division).length;
+                    
+                    const branchesHtml = Object.entries(data.branches)
+                        .sort((a, b) => b[1].total - a[1].total)
+                        .map(([br, brData]) => {
+                            // Calculate under 40 and no hours for this division+branch combo
+                            const brUnder40 = under40.filter(emp => emp.division === division && emp.branch === br).length;
+                            const brNoHours = noHours.filter(emp => emp.division === division && emp.branch === br).length;
+                            const brId = `div_${divisionId}_branch_${br.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                            
+                            // Get employees for this division+branch
+                            const brEmployees = {};
+                            outputData.forEach(row => {
+                                if (row['Division'] === division && row['Location'] === br) {
+                                    const empId = row['Employee ID'];
+                                    const hours = parseFloat(row['Duration']) || 0;
+                                    if (!brEmployees[empId]) {
+                                        brEmployees[empId] = {
+                                            name: row['Traditional name'] || row['Aspire Name'] || empId,
+                                            totalHours: 0
+                                        };
+                                    }
+                                    brEmployees[empId].totalHours += hours;
+                                }
+                            });
+                            
+                            // Add no-hours employees for this division+branch
+                            noHours.filter(emp => emp.division === division && emp.branch === br).forEach(emp => {
+                                if (!brEmployees[emp.id]) {
+                                    brEmployees[emp.id] = { name: emp.name, totalHours: 0 };
+                                }
+                            });
+                            
+                            const employeesHtml = Object.entries(brEmployees)
+                                .sort((a, b) => a[1].name.localeCompare(b[1].name))
+                                .map(([empId, emp]) => {
+                                    const isUnder40 = emp.totalHours > 0 && emp.totalHours < 40;
+                                    const isNoHours = emp.totalHours === 0;
+                                    const bgClass = isNoHours ? 'bg-red-50 border-red-100' : (isUnder40 ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100');
+                                    const hoursClass = isNoHours ? 'bg-red-100 text-red-700' : (isUnder40 ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-700');
+                                    return `
+                                        <div class="flex items-center justify-between p-1.5 ${bgClass} rounded border">
+                                            <span class="text-xs text-gray-600">${emp.name}</span>
+                                            <span class="px-1.5 py-0.5 ${hoursClass} text-xs rounded">${formatNumber(emp.totalHours)} hrs</span>
+                                        </div>
+                                    `;
+                                }).join('');
+                            
+                            return `
+                            <div class="border border-gray-200 rounded overflow-hidden">
+                                <button onclick="toggleRow('${brId}')" class="w-full flex items-center justify-between p-2 bg-white hover:bg-gray-50 transition-colors">
+                                    <div class="flex items-center gap-2 min-w-0">
+                                        <svg id="chevron_${brId}" class="w-3 h-3 text-gray-400 transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                        <span class="text-sm text-gray-600 truncate">${br}</span>
+                                        <span class="px-1.5 py-0.5 bg-gray-100 text-gray-500 text-xs rounded">${brData.employees.size}</span>
+                                        ${brUnder40 > 0 ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">${brUnder40} under 40</span>` : ''}
+                                        ${brNoHours > 0 ? `<span class="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded">${brNoHours} no hrs</span>` : ''}
+                                    </div>
+                                    <div class="flex items-center gap-1.5 text-xs flex-shrink-0 ml-2">
+                                        <span class="px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded">${formatNumber(brData.reg)}</span>
+                                        ${brData.pto > 0 ? `<span class="px-1.5 py-0.5 bg-green-100 text-green-700 rounded">${formatNumber(brData.pto)}</span>` : ''}
+                                        ${brData.hol > 0 ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">${formatNumber(brData.hol)}</span>` : ''}
+                                        ${brData.ot > 0 ? `<span class="px-1.5 py-0.5 bg-red-100 text-red-700 rounded">${formatNumber(brData.ot)}</span>` : ''}
+                                        <span class="font-semibold text-gray-700 ml-1">${formatNumber(brData.total)}</span>
+                                    </div>
+                                </button>
+                                <div id="${brId}" class="hidden p-2 pt-1 bg-gray-50 border-t border-gray-200 space-y-1 max-h-48 overflow-y-auto">
+                                    ${employeesHtml}
+                                </div>
+                            </div>
+                        `}).join('');
+                    
+                    return `
+                        <div class="border border-gray-200 rounded-lg overflow-hidden">
+                            <button onclick="toggleRow('division_${divisionId}')" class="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <svg id="chevron_division_${divisionId}" class="w-4 h-4 text-gray-400 transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    <span class="font-medium text-gray-700 truncate">${division}</span>
+                                    <span class="px-2 py-0.5 bg-slate-200 text-slate-600 text-xs rounded-full flex-shrink-0">${data.employees.size} employees</span>
+                                    ${divUnder40 > 0 ? `<span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full flex-shrink-0">${divUnder40} under 40</span>` : ''}
+                                    ${divNoHours > 0 ? `<span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full flex-shrink-0">${divNoHours} no hrs</span>` : ''}
+                                </div>
+                                <div class="flex items-center gap-2 text-sm flex-shrink-0 ml-4">
+                                    <span class="px-2 py-1 bg-gray-200 text-gray-700 rounded">${formatNumber(data.reg)} REG</span>
+                                    ${data.pto > 0 ? `<span class="px-2 py-1 bg-green-100 text-green-700 rounded">${formatNumber(data.pto)} PTO</span>` : ''}
+                                    ${data.hol > 0 ? `<span class="px-2 py-1 bg-amber-100 text-amber-700 rounded">${formatNumber(data.hol)} HOL</span>` : ''}
+                                    ${data.ot > 0 ? `<span class="px-2 py-1 bg-red-100 text-red-700 rounded">${formatNumber(data.ot)} OT</span>` : ''}
+                                    <span class="font-bold text-gray-800 ml-2">${formatNumber(data.total)}</span>
+                                </div>
+                            </button>
+                            <div id="division_${divisionId}" class="hidden p-3 pt-0 space-y-1.5 bg-gray-50 border-t border-gray-200">
+                                <p class="text-xs text-gray-500 font-medium pt-2 pb-1">Branches:</p>
+                                ${branchesHtml}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            // Update counts
+            document.getElementById('under40Count').textContent = under40.length;
+            document.getElementById('noHoursCount').textContent = noHours.length;
+            
+            // Render under 40 hours section (grouped by branch, then division)
+            const under40ByBranch = {};
+            under40.forEach(emp => {
+                if (!under40ByBranch[emp.branch]) {
+                    under40ByBranch[emp.branch] = {};
+                }
+                if (!under40ByBranch[emp.branch][emp.division]) {
+                    under40ByBranch[emp.branch][emp.division] = [];
+                }
+                under40ByBranch[emp.branch][emp.division].push(emp);
+            });
+            
+            const under40Container = document.getElementById('under40Stats');
+            if (under40.length === 0) {
+                under40Container.innerHTML = '<p class="text-sm text-gray-500 italic">All employees have 40+ hours</p>';
+            } else {
+                under40Container.innerHTML = Object.entries(under40ByBranch)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([branch, divisions]) => {
+                        const branchId = 'under40_' + branch.replace(/[^a-zA-Z0-9]/g, '_');
+                        const branchEmployeeCount = Object.values(divisions).flat().length;
+                        
+                        const divisionsHtml = Object.entries(divisions)
+                            .sort((a, b) => a[0].localeCompare(b[0]))
+                            .map(([div, employees]) => `
+                                <div class="ml-4 mb-2">
+                                    <p class="text-xs font-medium text-gray-600 mb-1">${div}</p>
+                                    <div class="space-y-1 ml-2">
+                                        ${employees.map(emp => `
+                                            <div class="flex items-center justify-between p-2 bg-white rounded border border-amber-100">
+                                                <span class="text-sm text-gray-700">${emp.name}</span>
+                                                <span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-sm font-medium rounded">${formatNumber(emp.totalHours)} hrs</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('');
+                        
+                        return `
+                            <div class="border border-amber-200 rounded-lg overflow-hidden">
+                                <button onclick="toggleRow('${branchId}')" class="w-full flex items-center justify-between p-3 bg-amber-50 hover:bg-amber-100 transition-colors">
+                                    <div class="flex items-center gap-2">
+                                        <svg id="chevron_${branchId}" class="w-4 h-4 text-amber-400 transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                        <span class="font-medium text-amber-800">${branch}</span>
+                                        <span class="px-2 py-0.5 bg-amber-200 text-amber-700 text-xs rounded-full">${branchEmployeeCount} employees</span>
+                                    </div>
+                                </button>
+                                <div id="${branchId}" class="hidden p-3 pt-2 bg-amber-50 border-t border-amber-200">
+                                    ${divisionsHtml}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+            }
+            
+            // Render no hours section (grouped by branch, then division)
+            const noHoursByBranch = {};
+            noHours.forEach(emp => {
+                if (!noHoursByBranch[emp.branch]) {
+                    noHoursByBranch[emp.branch] = {};
+                }
+                if (!noHoursByBranch[emp.branch][emp.division]) {
+                    noHoursByBranch[emp.branch][emp.division] = [];
+                }
+                noHoursByBranch[emp.branch][emp.division].push(emp);
+            });
+            
+            const noHoursContainer = document.getElementById('noHoursStats');
+            if (noHours.length === 0) {
+                noHoursContainer.innerHTML = '<p class="text-sm text-gray-500 italic">All employees have logged hours</p>';
+            } else {
+                noHoursContainer.innerHTML = Object.entries(noHoursByBranch)
+                    .sort((a, b) => a[0].localeCompare(b[0]))
+                    .map(([branch, divisions]) => {
+                        const branchId = 'noHours_' + branch.replace(/[^a-zA-Z0-9]/g, '_');
+                        const branchEmployeeCount = Object.values(divisions).flat().length;
+                        
+                        const divisionsHtml = Object.entries(divisions)
+                            .sort((a, b) => a[0].localeCompare(b[0]))
+                            .map(([div, employees]) => `
+                                <div class="ml-4 mb-2">
+                                    <p class="text-xs font-medium text-gray-600 mb-1">${div}</p>
+                                    <div class="space-y-1 ml-2">
+                                        ${employees.map(emp => `
+                                            <div class="flex items-center justify-between p-2 bg-white rounded border border-red-100">
+                                                <span class="text-sm text-gray-700">${emp.name}</span>
+                                                <span class="px-2 py-0.5 bg-red-100 text-red-700 text-sm font-medium rounded">0 hrs</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `).join('');
+                        
+                        return `
+                            <div class="border border-red-200 rounded-lg overflow-hidden">
+                                <button onclick="toggleRow('${branchId}')" class="w-full flex items-center justify-between p-3 bg-red-50 hover:bg-red-100 transition-colors">
+                                    <div class="flex items-center gap-2">
+                                        <svg id="chevron_${branchId}" class="w-4 h-4 text-red-400 transition-transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                        <span class="font-medium text-red-800">${branch}</span>
+                                        <span class="px-2 py-0.5 bg-red-200 text-red-700 text-xs rounded-full">${branchEmployeeCount} employees</span>
+                                    </div>
+                                </button>
+                                <div id="${branchId}" class="hidden p-3 pt-2 bg-red-50 border-t border-red-200">
+                                    ${divisionsHtml}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+            }
+        }
+
+        function populateBranchFilter() {
+            const select = document.getElementById('branchFilter');
+            select.innerHTML = '<option value="">All Branches</option>';
+            
+            Array.from(allBranches).sort().forEach(branch => {
+                const option = document.createElement('option');
+                option.value = branch;
+                option.textContent = branch;
+                select.appendChild(option);
+            });
+        }
+
+        function populateDivisionFilter() {
+            const select = document.getElementById('divisionFilter');
+            select.innerHTML = '<option value="">All Divisions</option>';
+            
+            Array.from(allDivisions).sort().forEach(division => {
+                const option = document.createElement('option');
+                option.value = division;
+                option.textContent = division;
+                select.appendChild(option);
+            });
+        }
+
+        function showPreview() {
+            const section = document.getElementById('previewSection');
+            const head = document.getElementById('previewHead');
+            const body = document.getElementById('previewBody');
+
+            section.classList.remove('hidden');
+
+            // Headers (excluding internal fields)
+            const displayHeaders = ['Employee ID', 'Aspire ID', 'Aspire Name', 'Date', 'Payroll Item', 'Duration', 'Location', 'Division', 'Pay Type'];
+            head.innerHTML = displayHeaders.map(h => 
+                `<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap bg-gray-50">${h}</th>`
+            ).join('');
+
+            renderTableRows(outputData);
+        }
+
+        function renderTableRows(data) {
+            const body = document.getElementById('previewBody');
+            
+            body.innerHTML = data.map(row => {
+                const payType = row['_PayType'];
+                let rowClass = '';
+                let badge = '';
+                
+                if (payType === 'PTO') {
+                    rowClass = 'pay-type-pto';
+                    badge = '<span class="px-2 py-1 text-xs font-medium bg-green-200 text-green-800 rounded">PTO</span>';
+                } else if (payType === 'HOL') {
+                    rowClass = 'pay-type-hol';
+                    badge = '<span class="px-2 py-1 text-xs font-medium bg-amber-200 text-amber-800 rounded">HOL</span>';
+                } else if (payType === 'OT') {
+                    rowClass = 'pay-type-ot';
+                    badge = '<span class="px-2 py-1 text-xs font-medium bg-red-200 text-red-800 rounded">OT</span>';
+                } else {
+                    rowClass = 'pay-type-reg';
+                    badge = '<span class="px-2 py-1 text-xs font-medium bg-gray-200 text-gray-800 rounded">REG</span>';
+                }
+                
+                // Duration alert icon - warn if not divisible by 8
+                const duration = parseFloat(row['Duration']) || 0;
+                let durationAlert = '';
+                if (duration > 0 && duration % 8 !== 0) {
+                    durationAlert = `<span class="ml-1 text-amber-500" title="Not divisible by 8 hours">
+                        <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                    </span>`;
+                }
+                
+                return `<tr class="hover:bg-gray-100 ${rowClass}">
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${row['Employee ID']}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${row['Aspire ID']}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${row['Aspire Name']}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${row['Date']}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${row['Payroll Item']}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap font-medium">${row['Duration']}${durationAlert}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${row['Location']}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${row['Division']}</td>
+                    <td class="px-4 py-3 text-sm whitespace-nowrap">${badge}</td>
+                </tr>`;
+            }).join('');
+            
+            document.getElementById('previewCount').textContent = `Total: ${outputData.length} records`;
+            document.getElementById('filteredCount').textContent = `Showing: ${data.length} records`;
+        }
+
+        function filterTable() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const payTypeFilter = document.getElementById('payTypeFilter').value;
+            const branchFilter = document.getElementById('branchFilter').value;
+            const divisionFilter = document.getElementById('divisionFilter').value;
+            const warningFilter = document.getElementById('warningFilter').value;
+            
+            const filtered = outputData.filter(row => {
+                // Search filter
+                const matchesSearch = !searchTerm || 
+                    row['Employee ID'].toLowerCase().includes(searchTerm) ||
+                    row['Aspire Name'].toLowerCase().includes(searchTerm) ||
+                    row['Traditional name'].toLowerCase().includes(searchTerm);
+                
+                // Pay type filter
+                const matchesPayType = !payTypeFilter || row['_PayType'] === payTypeFilter;
+                
+                // Branch filter
+                const matchesBranch = !branchFilter || row['Location'] === branchFilter;
+                
+                // Division filter
+                const matchesDivision = !divisionFilter || row['Division'] === divisionFilter;
+                
+                // Warning filter (duration not divisible by 8)
+                const duration = parseFloat(row['Duration']) || 0;
+                const hasWarning = duration > 0 && duration % 8 !== 0;
+                let matchesWarning = true;
+                if (warningFilter === 'warnings') {
+                    matchesWarning = hasWarning;
+                } else if (warningFilter === 'no-warnings') {
+                    matchesWarning = !hasWarning;
+                }
+                
+                return matchesSearch && matchesPayType && matchesBranch && matchesDivision && matchesWarning;
+            });
+            
+            renderTableRows(filtered);
+        }
+
+        function downloadCSV() {
+            if (outputData.length === 0) return;
+
+            // Create export data without internal fields
+            const exportData = outputData.map(row => {
+                const { _PayType, _PayCode, ...rest } = row;
+                return rest;
+            });
+
+            const csv = Papa.unparse(exportData);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const date = new Date().toISOString().split('T')[0];
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', `NetSuite_Upload_${date}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Initialize
+        updateMessages();
+
+        function updatePayPeriodDisplay() {
+            const dateInput = document.getElementById('payPeriodDate').value;
+            const display = document.getElementById('payPeriodDisplay');
+            const range = document.getElementById('payPeriodRange');
+            
+            if (!dateInput) {
+                display.classList.add('hidden');
+                return;
+            }
+            
+            const [year, month, day] = dateInput.split('-').map(Number);
+            const selectedDate = new Date(year, month - 1, day);
+            
+            // Calculate Monday of that week
+            const dayOfWeek = selectedDate.getDay();
+            const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            const monday = new Date(selectedDate);
+            monday.setDate(selectedDate.getDate() - daysToMonday);
+            
+            // Calculate Sunday
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            
+            const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+            range.textContent = `${monday.toLocaleDateString('en-US', options)} — ${sunday.toLocaleDateString('en-US', options)}`;
+            display.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
