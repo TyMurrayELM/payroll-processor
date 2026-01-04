@@ -119,6 +119,12 @@
                         </svg>
                         <span id="downloadText">Download CSV</span>
                     </button>
+                    <button onclick="clearAllData()" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                        Clear All Data
+                    </button>
                 </div>
             </div>
 
@@ -343,6 +349,143 @@
         let outputData = [];
         let allBranches = new Set();
         let allDivisions = new Set();
+        
+        // LocalStorage keys
+        const STORAGE_KEYS = {
+            ptoData: 'payroll_ptoData',
+            dataDumpData: 'payroll_dataDumpData',
+            employeeData: 'payroll_employeeData',
+            outputData: 'payroll_outputData',
+            payPeriodDate: 'payroll_payPeriodDate'
+        };
+        
+        // Save data to localStorage
+        function saveToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEYS.ptoData, JSON.stringify(ptoData));
+                localStorage.setItem(STORAGE_KEYS.dataDumpData, JSON.stringify(dataDumpData));
+                localStorage.setItem(STORAGE_KEYS.employeeData, JSON.stringify(employeeData));
+                localStorage.setItem(STORAGE_KEYS.outputData, JSON.stringify(outputData));
+                const payPeriodDate = document.getElementById('payPeriodDate').value;
+                if (payPeriodDate) {
+                    localStorage.setItem(STORAGE_KEYS.payPeriodDate, payPeriodDate);
+                }
+                console.log('Data saved to localStorage');
+            } catch (e) {
+                console.warn('Could not save to localStorage:', e);
+            }
+        }
+        
+        // Load data from localStorage
+        function loadFromStorage() {
+            try {
+                const storedPTO = localStorage.getItem(STORAGE_KEYS.ptoData);
+                const storedDataDump = localStorage.getItem(STORAGE_KEYS.dataDumpData);
+                const storedEmployee = localStorage.getItem(STORAGE_KEYS.employeeData);
+                const storedOutput = localStorage.getItem(STORAGE_KEYS.outputData);
+                const storedPayPeriod = localStorage.getItem(STORAGE_KEYS.payPeriodDate);
+                
+                if (storedPTO) ptoData = JSON.parse(storedPTO);
+                if (storedDataDump) dataDumpData = JSON.parse(storedDataDump);
+                if (storedEmployee) employeeData = JSON.parse(storedEmployee);
+                if (storedOutput) outputData = JSON.parse(storedOutput);
+                
+                // Restore pay period date
+                if (storedPayPeriod) {
+                    document.getElementById('payPeriodDate').value = storedPayPeriod;
+                    updatePayPeriodDisplay();
+                }
+                
+                // Update UI to reflect loaded data
+                if (ptoData.length > 0) {
+                    const validation = validatePTOFile(ptoData);
+                    updateDropzone('ptoDropzone', 'ptoIcon', 'ptoStatus', validation.message, validation.valid);
+                }
+                if (dataDumpData.length > 0) {
+                    const validation = validateDataDumpFile(dataDumpData);
+                    updateDropzone('dataDumpDropzone', 'dataDumpIcon', 'dataDumpStatus', validation.message, validation.valid);
+                }
+                if (employeeData.length > 0) {
+                    const validation = validateEmployeeFile(employeeData);
+                    updateDropzone('employeeDropzone', 'employeeIcon', 'employeeStatus', validation.message, validation.valid);
+                }
+                
+                updateProcessButton();
+                
+                // If we have output data, show the results
+                if (outputData.length > 0) {
+                    // Rebuild allBranches and allDivisions from output
+                    allBranches = new Set(outputData.map(row => row['Location']).filter(Boolean));
+                    allDivisions = new Set(outputData.map(row => row['Division']).filter(Boolean));
+                    
+                    document.getElementById('downloadBtn').classList.remove('hidden');
+                    document.getElementById('downloadText').textContent = `Download CSV (${outputData.length} records)`;
+                    
+                    updateSummaryStats();
+                    populateBranchFilter();
+                    populateDivisionFilter();
+                    showPreview();
+                }
+                
+                console.log('Data loaded from localStorage');
+                return storedPTO || storedDataDump || storedEmployee;
+            } catch (e) {
+                console.warn('Could not load from localStorage:', e);
+                return false;
+            }
+        }
+        
+        // Clear all stored data
+        function clearAllData() {
+            if (!confirm('Are you sure you want to clear all uploaded data and start fresh?')) {
+                return;
+            }
+            
+            // Clear localStorage
+            Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+            
+            // Reset variables
+            ptoData = [];
+            dataDumpData = [];
+            employeeData = [];
+            outputData = [];
+            allBranches = new Set();
+            allDivisions = new Set();
+            
+            // Reset UI
+            document.getElementById('payPeriodDate').value = '';
+            document.getElementById('payPeriodDisplay').classList.add('hidden');
+            
+            // Reset dropzones
+            ['pto', 'dataDump', 'employee'].forEach(type => {
+                const dropzone = document.getElementById(`${type}Dropzone`);
+                const icon = document.getElementById(`${type}Icon`);
+                const status = document.getElementById(`${type}Status`);
+                
+                dropzone.classList.remove('border-green-400', 'bg-green-50', 'border-red-400', 'bg-red-50');
+                dropzone.classList.add('border-gray-300');
+                
+                icon.innerHTML = `<svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>`;
+                
+                const defaultStatus = {
+                    pto: 'PTO & Holiday hours',
+                    dataDump: 'Regular work hours',
+                    employee: 'Employee mapping data'
+                };
+                status.innerHTML = `<span class="text-gray-500">${defaultStatus[type]}</span>`;
+            });
+            
+            // Hide results sections
+            document.getElementById('summarySection').classList.add('hidden');
+            document.getElementById('previewSection').classList.add('hidden');
+            document.getElementById('downloadBtn').classList.add('hidden');
+            
+            updateProcessButton();
+            
+            alert('All data cleared!');
+        }
         
         // Slack configuration - using Bot Token approach
         // Channel mappings: Branch|Division -> Channel ID
@@ -1020,6 +1163,9 @@
             
             updateMessages();
             
+            // Save uploaded data to localStorage
+            saveToStorage();
+            
             if (hasValidData && employeeValid && hasPayPeriod) {
                 btn.disabled = false;
                 btn.classList.remove('bg-gray-400', 'cursor-not-allowed');
@@ -1415,6 +1561,9 @@
                     populateBranchFilter();
                     populateDivisionFilter();
                     showPreview();
+                    
+                    // Save to localStorage
+                    saveToStorage();
                 }
             }, 100);
         }
@@ -1547,6 +1696,32 @@
                 }
             });
             noHours.sort((a, b) => a.branch.localeCompare(b.branch) || a.name.localeCompare(b.name));
+            
+            // Ensure all employees (including those with no hours) are represented in branchData and divisionData
+            allEmployeesInSystem.forEach((data, empId) => {
+                const branch = data.branch;
+                const division = data.division;
+                
+                // Ensure branch exists
+                if (!branchData[branch]) {
+                    branchData[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), divisions: {} };
+                }
+                
+                // Ensure division within branch exists
+                if (!branchData[branch].divisions[division]) {
+                    branchData[branch].divisions[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                }
+                
+                // Ensure division exists in divisionData
+                if (!divisionData[division]) {
+                    divisionData[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), branches: {} };
+                }
+                
+                // Ensure branch within division exists
+                if (!divisionData[division].branches[branch]) {
+                    divisionData[division].branches[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                }
+            });
             
             // Update branch stats
             const branchContainer = document.getElementById('branchStats');
@@ -2080,6 +2255,13 @@
 
         // Initialize
         updateMessages();
+        
+        // Load persisted data on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                loadFromStorage();
+            }, 100);
+        });
 
         function updatePayPeriodDisplay() {
             const dateInput = document.getElementById('payPeriodDate').value;
