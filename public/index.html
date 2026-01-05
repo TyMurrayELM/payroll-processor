@@ -563,14 +563,14 @@
             
             let title, employeeList;
             if (alertType === 'no-hours') {
-                title = `⚠️ ${division} (${branchDisplay}) - No Hours Alert`;
+                title = `⚠️ *${division}* (${branchDisplay}) - No Hours Alert`;
                 employeeList = employees.map(emp => `• ${emp.name}`).join('\n');
             } else if (alertType === 'under-40') {
-                title = `⚠️ ${division} (${branchDisplay}) - Under 40 Hours Alert`;
+                title = `⚠️ *${division}* (${branchDisplay}) - Under 40 Hours Alert`;
                 employeeList = employees.map(emp => `• ${emp.name} - ${emp.totalHours.toFixed(1)} hrs`).join('\n');
             }
             
-            const messageText = `${title}\n\nPay period: ${startStr} - ${endStr}\n\nThe following employees ${alertType === 'no-hours' ? 'have no hours' : 'are under 40 hours'}:\n${employeeList}`;
+            const messageText = `${title}\n\n*Pay period:* ${startStr} - ${endStr}\n\nThe following employees ${alertType === 'no-hours' ? 'have no hours' : 'are under 40 hours'}:\n${employeeList}`;
             
             try {
                 // Use the API route to send via bot token
