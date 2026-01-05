@@ -491,9 +491,9 @@
         // Channel mappings: Branch|Division -> Channel ID
         const slackChannels = {
             // Corporate divisions
-            'Corporate|Arbor': 'C06JT9Q4A3B',
-            'Corporate|Enhancements': 'C06JTB3QS0Z',
-            'Corporate|Spray': 'C06U9K3EKT7',
+            'Corporate|Arbor': 'C0A6TRCF2UD',
+            'Corporate|Enhancements': 'C0A6QSVF82X',
+            'Corporate|Spray': 'C0A70SAAP6G',
             'Corporate|Overhead : Equipment & Fleet Operations': 'C0896PY7EAF',
         };
         
@@ -510,10 +510,16 @@
                 return 'C0A6ZJRUGQ4';
             }
             
-            // Phoenix (any branch) - Maintenance or Irrigation
+            // Phoenix branches - Maintenance or Irrigation, split by branch
             if (branch.startsWith('Phoenix') || branch.startsWith('Phx')) {
                 if (division.includes('Maintenance') || division === 'Irrigation') {
-                    return 'C04V05RE822';
+                    if (branch.includes('North')) {
+                        return 'C0A6V6V4KQW';
+                    } else if (branch.includes('SouthWest')) {
+                        return 'C0A6TR64PCM';
+                    } else if (branch.includes('SouthEast')) {
+                        return 'C0A6TQZ250D';
+                    }
                 }
             }
             
