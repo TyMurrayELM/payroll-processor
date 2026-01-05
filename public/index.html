@@ -1890,8 +1890,23 @@
                                 .map(([empId, emp]) => {
                                     const isUnder40 = emp.totalHours > 0 && emp.totalHours < 40;
                                     const isNoHours = emp.totalHours === 0;
-                                    const bgClass = isNoHours ? 'bg-red-50 border-red-100' : (isUnder40 ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100');
-                                    const hoursClass = isNoHours ? 'bg-red-100 text-red-700' : (isUnder40 ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-700');
+                                    const hasOT = divOTEmps.some(otEmp => otEmp.name === emp.name);
+                                    
+                                    let bgClass, hoursClass;
+                                    if (isNoHours) {
+                                        bgClass = 'bg-red-50 border-red-100';
+                                        hoursClass = 'bg-red-100 text-red-700';
+                                    } else if (hasOT) {
+                                        bgClass = 'bg-red-50 border-red-200';
+                                        hoursClass = 'bg-red-100 text-red-700';
+                                    } else if (isUnder40) {
+                                        bgClass = 'bg-amber-50 border-amber-100';
+                                        hoursClass = 'bg-amber-100 text-amber-700';
+                                    } else {
+                                        bgClass = 'bg-gray-50 border-gray-100';
+                                        hoursClass = 'bg-gray-200 text-gray-700';
+                                    }
+                                    
                                     return `
                                         <div class="flex items-center justify-between p-1.5 ${bgClass} rounded border">
                                             <span class="text-xs text-gray-600">${emp.name}</span>
@@ -2024,13 +2039,43 @@
                                 }
                             });
                             
+                            // Get OT employees for this division+branch
+                            const brOTEmps = [];
+                            outputData.forEach(row => {
+                                if (row['Division'] === division && row['Location'] === br && row['_PayType'] === 'OT') {
+                                    const empName = row['Traditional name'] || row['Aspire Name'] || row['Employee ID'];
+                                    const otHours = parseFloat(row['Duration']) || 0;
+                                    const existing = brOTEmps.find(e => e.name === empName);
+                                    if (existing) {
+                                        existing.otHours += otHours;
+                                    } else {
+                                        brOTEmps.push({ name: empName, otHours: otHours });
+                                    }
+                                }
+                            });
+                            
                             const employeesHtml = Object.entries(brEmployees)
                                 .sort((a, b) => a[1].name.localeCompare(b[1].name))
                                 .map(([empId, emp]) => {
                                     const isUnder40 = emp.totalHours > 0 && emp.totalHours < 40;
                                     const isNoHours = emp.totalHours === 0;
-                                    const bgClass = isNoHours ? 'bg-red-50 border-red-100' : (isUnder40 ? 'bg-amber-50 border-amber-100' : 'bg-gray-50 border-gray-100');
-                                    const hoursClass = isNoHours ? 'bg-red-100 text-red-700' : (isUnder40 ? 'bg-amber-100 text-amber-700' : 'bg-gray-200 text-gray-700');
+                                    const hasOT = brOTEmps.some(otEmp => otEmp.name === emp.name);
+                                    
+                                    let bgClass, hoursClass;
+                                    if (isNoHours) {
+                                        bgClass = 'bg-red-50 border-red-100';
+                                        hoursClass = 'bg-red-100 text-red-700';
+                                    } else if (hasOT) {
+                                        bgClass = 'bg-red-50 border-red-200';
+                                        hoursClass = 'bg-red-100 text-red-700';
+                                    } else if (isUnder40) {
+                                        bgClass = 'bg-amber-50 border-amber-100';
+                                        hoursClass = 'bg-amber-100 text-amber-700';
+                                    } else {
+                                        bgClass = 'bg-gray-50 border-gray-100';
+                                        hoursClass = 'bg-gray-200 text-gray-700';
+                                    }
+                                    
                                     return `
                                         <div class="flex items-center justify-between p-1.5 ${bgClass} rounded border">
                                             <span class="text-xs text-gray-600">${emp.name}</span>
