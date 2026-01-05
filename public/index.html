@@ -622,6 +622,12 @@
                             style: 'danger',
                             action_id: 'reject_alert',
                             value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
+                        },
+                        {
+                            type: 'button',
+                            text: { type: 'plain_text', text: '🔧 Correcting', emoji: true },
+                            action_id: 'correcting_alert',
+                            value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
                         }
                     ]
                 }
@@ -1931,6 +1937,7 @@
                                         ${divNoHours > 0 ? `<span class="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded">${divNoHours} no hrs</span>` : ''}
                                         ${hasSlackWebhook && divNoHours > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'no-hours')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send no hours alert to Slack">📤 No Hrs</span>` : ''}
                                         ${hasSlackWebhook && divUnder40 > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'under-40')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send under 40 alert to Slack">📤 Under 40</span>` : ''}
+                                        ${hasSlackWebhook && divOTEmps.length > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'ot')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send overtime alert to Slack">📤 OT</span>` : ''}
                                     </div>
                                     <div class="flex items-center gap-1.5 text-xs flex-shrink-0 ml-2">
                                         <span class="px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded">${formatNumber(divData.reg)}</span>

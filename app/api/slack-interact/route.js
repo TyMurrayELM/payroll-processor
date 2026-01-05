@@ -28,6 +28,9 @@ export async function POST(request) {
     } else if (actionId === 'reject_alert') {
       statusEmoji = '❌';
       statusText = `Rejected by @${username}`;
+    } else if (actionId === 'correcting_alert') {
+      statusEmoji = '🔧';
+      statusText = `Correcting by @${username}`;
     } else {
       return Response.json({ error: 'Unknown action' }, { status: 400 });
     }
