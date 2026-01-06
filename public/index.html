@@ -552,7 +552,7 @@
             return emojiMap[branch] || '';
         }
         
-        async function sendToSlack(branch, division, employees, alertType = 'no-hours') {
+        async function sendToSlack(branch, division, employees, alertType = 'no-hours', summaryData = null) {
             const channel = getSlackChannel(branch, division);
             if (!channel) {
                 alert(`No Slack channel configured for ${branch} - ${division}`);
@@ -567,80 +567,120 @@
             const branchEmoji = getBranchEmoji(branch);
             const branchDisplay = branchEmoji ? `${branchEmoji} ${branch}` : branch;
             
-            let icon, title, employeeList, description;
-            if (alertType === 'no-hours') {
-                icon = '⚠️';
-                title = `*${division}* (${branchDisplay}) - No Hours Alert`;
-                employeeList = employees.map(emp => `• ${emp.name}`).join('\n');
-                description = 'have no hours';
-            } else if (alertType === 'under-40') {
-                icon = '⚠️';
-                title = `*${division}* (${branchDisplay}) - Under 40 Hours Alert`;
-                employeeList = employees.map(emp => `• ${emp.name} - ${emp.totalHours.toFixed(1)} hrs`).join('\n');
-                description = 'are under 40 hours';
-            } else if (alertType === 'ot') {
-                icon = '🕐';
-                title = `*${division}* (${branchDisplay}) - Overtime Alert`;
-                employeeList = employees.map(emp => `• ${emp.name} - ${emp.otHours.toFixed(1)} OT hrs`).join('\n');
-                description = 'have overtime';
-            }
+            let blocks, fallbackText;
             
-            // Build Block Kit message with approval buttons
-            const blocks = [
-                {
-                    type: 'section',
-                    text: {
-                        type: 'mrkdwn',
-                        text: `${icon} ${title}`
-                    }
-                },
-                {
-                    type: 'section',
-                    text: {
-                        type: 'mrkdwn',
-                        text: `*Pay period:* ${startStr} - ${endStr}`
-                    }
-                },
-                {
-                    type: 'section',
-                    text: {
-                        type: 'mrkdwn',
-                        text: `The following employees ${description}:\n${employeeList}`
-                    }
-                },
-                {
-                    type: 'divider'
-                },
-                {
-                    type: 'actions',
-                    block_id: `approval_${Date.now()}`,
-                    elements: [
-                        {
-                            type: 'button',
-                            text: { type: 'plain_text', text: '✅ Approve', emoji: true },
-                            style: 'primary',
-                            action_id: 'approve_alert',
-                            value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
-                        },
-                        {
-                            type: 'button',
-                            text: { type: 'plain_text', text: '❌ Reject', emoji: true },
-                            style: 'danger',
-                            action_id: 'reject_alert',
-                            value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
-                        },
-                        {
-                            type: 'button',
-                            text: { type: 'plain_text', text: '🔧 Correcting', emoji: true },
-                            action_id: 'correcting_alert',
-                            value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
+            // Handle summary type differently - no approval buttons
+            if (alertType === 'summary' && summaryData) {
+                const avgHours = summaryData.employeeCount > 0 ? (summaryData.totalHours / summaryData.employeeCount).toFixed(1) : '0.0';
+                
+                blocks = [
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `📊 *${division}* (${branchDisplay}) - Summary`
                         }
-                    ]
+                    },
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `*Pay period:* ${startStr} - ${endStr}`
+                        }
+                    },
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `*Hours Breakdown:*\n• Total: ${formatNumber(summaryData.totalHours)} hrs\n• Regular: ${formatNumber(summaryData.regHours)} hrs\n• PTO/Sick: ${formatNumber(summaryData.ptoHours)} hrs\n• Holiday: ${formatNumber(summaryData.holHours)} hrs\n• OT: ${formatNumber(summaryData.otHours)} hrs`
+                        }
+                    },
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `*Employee Stats:*\n• Total Employees: ${summaryData.employeeCount}\n• With OT: ${summaryData.otCount}\n• Under 40 hrs: ${summaryData.under40Count}\n• No Hours: ${summaryData.noHoursCount}\n• Avg Hours/Employee: ${avgHours} hrs`
+                        }
+                    }
+                ];
+                
+                fallbackText = `📊 ${division} (${branchDisplay}) - Summary`;
+            } else {
+                // Alert types with employee lists and approval buttons
+                let icon, title, employeeList, description;
+                if (alertType === 'no-hours') {
+                    icon = '⚠️';
+                    title = `*${division}* (${branchDisplay}) - No Hours Alert`;
+                    employeeList = employees.map(emp => `• ${emp.name}`).join('\n');
+                    description = 'have no hours';
+                } else if (alertType === 'under-40') {
+                    icon = '⚠️';
+                    title = `*${division}* (${branchDisplay}) - Under 40 Hours Alert`;
+                    employeeList = employees.map(emp => `• ${emp.name} - ${emp.totalHours.toFixed(1)} hrs`).join('\n');
+                    description = 'are under 40 hours';
+                } else if (alertType === 'ot') {
+                    icon = '🕐';
+                    title = `*${division}* (${branchDisplay}) - Overtime Alert`;
+                    employeeList = employees.map(emp => `• ${emp.name} - ${emp.otHours.toFixed(1)} OT hrs`).join('\n');
+                    description = 'have overtime';
                 }
-            ];
-            
-            // Fallback text for notifications
-            const fallbackText = `${icon} ${title} - ${description}`;
+                
+                // Build Block Kit message with approval buttons
+                blocks = [
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `${icon} ${title}`
+                        }
+                    },
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `*Pay period:* ${startStr} - ${endStr}`
+                        }
+                    },
+                    {
+                        type: 'section',
+                        text: {
+                            type: 'mrkdwn',
+                            text: `The following employees ${description}:\n${employeeList}`
+                        }
+                    },
+                    {
+                        type: 'divider'
+                    },
+                    {
+                        type: 'actions',
+                        block_id: `approval_${Date.now()}`,
+                        elements: [
+                            {
+                                type: 'button',
+                                text: { type: 'plain_text', text: '✅ Approve', emoji: true },
+                                style: 'primary',
+                                action_id: 'approve_alert',
+                                value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
+                            },
+                            {
+                                type: 'button',
+                                text: { type: 'plain_text', text: '❌ Reject', emoji: true },
+                                style: 'danger',
+                                action_id: 'reject_alert',
+                                value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
+                            },
+                            {
+                                type: 'button',
+                                text: { type: 'plain_text', text: '🔧 Correcting', emoji: true },
+                                action_id: 'correcting_alert',
+                                value: JSON.stringify({ alertType, branch, division, payPeriod: `${startStr} - ${endStr}` })
+                            }
+                        ]
+                    }
+                ];
+                
+                fallbackText = `${icon} ${title} - ${description}`;
+            }
             
             try {
                 // Use the API route to send via bot token
@@ -686,6 +726,12 @@
             const data = window[dataId];
             if (!data) {
                 alert('Error: Could not find employee data');
+                return;
+            }
+            
+            // Summary doesn't need employees list
+            if (alertType === 'summary') {
+                sendToSlack(data.branch, data.division, null, alertType, data.summary);
                 return;
             }
             
@@ -1888,7 +1934,18 @@
                                 division: div, 
                                 noHours: divNoHoursEmps,
                                 under40: divUnder40Emps,
-                                ot: divOTEmps
+                                ot: divOTEmps,
+                                summary: {
+                                    totalHours: divData.total,
+                                    regHours: divData.reg,
+                                    ptoHours: divData.pto,
+                                    holHours: divData.hol,
+                                    otHours: divData.ot,
+                                    employeeCount: divData.employees.size,
+                                    otCount: divOTEmps.length,
+                                    under40Count: divUnder40,
+                                    noHoursCount: divNoHours
+                                }
                             };
                             
                             const employeesHtml = Object.entries(divEmployees)
@@ -1959,6 +2016,7 @@
                                         ${hasSlackWebhook && divNoHours > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'no-hours')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send no hours alert to Slack">📤 No Hrs</span>` : ''}
                                         ${hasSlackWebhook && divUnder40 > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'under-40')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send under 40 alert to Slack">📤 Under 40</span>` : ''}
                                         ${hasSlackWebhook && divOTEmps.length > 0 ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'ot')" class="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded cursor-pointer" title="Send overtime alert to Slack">📤 OT</span>` : ''}
+                                        ${hasSlackWebhook ? `<span onclick="event.stopPropagation(); sendSlackAlert('${slackDataId}', 'summary')" class="px-1.5 py-0.5 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs rounded cursor-pointer" title="Send summary to Slack">📊 Summary</span>` : ''}
                                     </div>
                                     <div class="flex items-center gap-1.5 text-xs flex-shrink-0 ml-2">
                                         <span class="px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded">${formatNumber(divData.reg)}</span>
