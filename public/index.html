@@ -495,6 +495,10 @@
             'Corporate|Enhancements': 'C0A6QSVF82X',
             'Corporate|Spray': 'C0A70SAAP6G',
             'Corporate|Overhead : Equipment & Fleet Operations': 'C0896PY7EAF',
+            // Phoenix divisions (same channels as Corporate)
+            'Phoenix|Arbor': 'C0A6TRCF2UD',
+            'Phoenix|Enhancements': 'C0A6QSVF82X',
+            'Phoenix|Spray': 'C0A70SAAP6G',
         };
         
         // Get Slack channel for a branch/division combo
@@ -545,11 +549,24 @@
         // Get branch emoji for Slack
         function getBranchEmoji(branch) {
             const emojiMap = {
+                'Phoenix': ':az:',
                 'Phoenix - North': ':n:',
                 'Phoenix - SouthWest': ':sw:',
                 'Phoenix - SouthEast': ':se:'
             };
             return emojiMap[branch] || '';
+        }
+        
+        function getDivisionEmoji(division) {
+            // Check for partial matches since division names can vary
+            if (division === 'Arbor') return ':palm_tree:';
+            if (division === 'Enhancements') return ':enh:';
+            if (division === 'Spray') return ':pesticide:';
+            if (division === 'Irrigation') return ':droplet:';
+            if (division.includes('Maintenance') && division.includes('Onsite')) return ':office:';
+            if (division.includes('Maintenance')) return ':agave:';
+            if (division.includes('Equipment') || division.includes('Fleet')) return ':truck:';
+            return '';
         }
         
         async function sendToSlack(branch, division, employees, alertType = 'no-hours', summaryData = null) {
@@ -566,6 +583,8 @@
             
             const branchEmoji = getBranchEmoji(branch);
             const branchDisplay = branchEmoji ? `${branchEmoji} ${branch}` : branch;
+            const divisionEmoji = getDivisionEmoji(division);
+            const divisionDisplay = divisionEmoji ? `${divisionEmoji} ${division}` : division;
             
             let blocks, fallbackText;
             
@@ -578,7 +597,7 @@
                         type: 'section',
                         text: {
                             type: 'mrkdwn',
-                            text: `📊 *${division}* (${branchDisplay}) - Summary`
+                            text: `📊 *${divisionDisplay}* (${branchDisplay}) - Summary`
                         }
                     },
                     {
@@ -604,23 +623,23 @@
                     }
                 ];
                 
-                fallbackText = `📊 ${division} (${branchDisplay}) - Summary`;
+                fallbackText = `📊 ${divisionDisplay} (${branchDisplay}) - Summary`;
             } else {
                 // Alert types with employee lists and approval buttons
                 let icon, title, employeeList, description;
                 if (alertType === 'no-hours') {
                     icon = '⚠️';
-                    title = `*${division}* (${branchDisplay}) - No Hours Alert`;
+                    title = `*${divisionDisplay}* (${branchDisplay}) - No Hours Alert`;
                     employeeList = employees.map(emp => `• ${emp.name}`).join('\n');
                     description = 'have no hours';
                 } else if (alertType === 'under-40') {
                     icon = '⚠️';
-                    title = `*${division}* (${branchDisplay}) - Under 40 Hours Alert`;
+                    title = `*${divisionDisplay}* (${branchDisplay}) - Under 40 Hours Alert`;
                     employeeList = employees.map(emp => `• ${emp.name} - ${emp.totalHours.toFixed(1)} hrs`).join('\n');
                     description = 'are under 40 hours';
                 } else if (alertType === 'ot') {
                     icon = '🕐';
-                    title = `*${division}* (${branchDisplay}) - Overtime Alert`;
+                    title = `*${divisionDisplay}* (${branchDisplay}) - Overtime Alert`;
                     employeeList = employees.map(emp => `• ${emp.name} - ${emp.otHours.toFixed(1)} OT hrs`).join('\n');
                     description = 'have overtime';
                 }

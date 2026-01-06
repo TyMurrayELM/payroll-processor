@@ -18,7 +18,42 @@ export async function POST(request) {
     
     const action = actions[0];
     const actionId = action.action_id;
+    const userId = user.id;
     const username = user.username || user.name || 'Unknown';
+    
+    // Users authorized to Approve/Reject
+    const authorizedUsers = [
+      'U02KTLUT3EE',
+      'U03ED3EU7K7',
+      'U03E1EZM8VB',
+      'U01SAQ269FH',
+      'U09RJFKEX4P',
+      'U01S4KLNLJ3',
+      'U06C4MEKGCB',
+      'U05DGQ4TFQC',
+      'U04D4KMSPE3',
+      'U08LDDY4V5K',
+      'U06UYKXHN4W',
+      'U06B2MRQC3V',
+      'U03RCLGQFU5',
+      'U07JRUEEYRW',
+      'U01QVSRPV63'
+    ];
+    
+    // Check authorization for Approve/Reject (Correcting is open to anyone)
+    if ((actionId === 'approve_alert' || actionId === 'reject_alert') && !authorizedUsers.includes(userId)) {
+      // Send ephemeral message (only visible to the user who clicked)
+      await fetch(response_url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          response_type: 'ephemeral',
+          replace_original: false,
+          text: '⛔ You are not authorized to Approve or Reject. Please contact a supervisor.'
+        })
+      });
+      return new Response('', { status: 200 });
+    }
     
     // Determine approval status
     let statusText, statusEmoji;
@@ -64,24 +99,6 @@ export async function POST(request) {
     
     if (!updateResponse.ok) {
       console.error('Failed to update message:', await updateResponse.text());
-    }
-    
-    // Also forward to Zapier webhook for any additional automation
-    try {
-      await fetch('https://hooks.zapier.com/hooks/catch/9760594/3gtib6w/silent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: actionId,
-          user: username,
-          channel: channel.name || channel.id,
-          timestamp: new Date().toISOString(),
-          alertData: action.value
-        })
-      });
-    } catch (zapierErr) {
-      console.error('Zapier webhook error:', zapierErr);
-      // Don't fail the request if Zapier fails
     }
     
     // Return empty 200 to acknowledge receipt
