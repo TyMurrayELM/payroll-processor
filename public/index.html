@@ -1434,7 +1434,7 @@
                 allBranches = new Set();
                 allDivisions = new Set();
                 const employeeMap = buildEmployeeMap();
-                const notFoundEmployees = new Set();
+                const notFoundEmployees = new Map(); // Map of aspireId -> {name, sources: Set}
                 const payPeriodEndDate = document.getElementById('payPeriodDate').value;
                 let skippedOutsidePayPeriod = 0;
 
@@ -1522,7 +1522,12 @@
 
                     const employee = employeeMap.get(aspireId);
                     if (!employee) {
-                        notFoundEmployees.add(`${aspireId} (${record['First Name']} ${record['Last Name']})`);
+                        const name = `${record['First Name']} ${record['Last Name']}`;
+                        if (notFoundEmployees.has(aspireId)) {
+                            notFoundEmployees.get(aspireId).sources.add('PTO/Holiday');
+                        } else {
+                            notFoundEmployees.set(aspireId, { name, sources: new Set(['PTO/Holiday']) });
+                        }
                         return;
                     }
 
@@ -1593,7 +1598,12 @@
 
                         const employee = employeeMap.get(aspireId);
                         if (!employee) {
-                            notFoundEmployees.add(`${aspireId} (${record['Employee Display Name'] || 'Unknown'})`);
+                            const name = record['Employee Display Name'] || 'Unknown';
+                            if (notFoundEmployees.has(aspireId)) {
+                                notFoundEmployees.get(aspireId).sources.add('Data Dump');
+                            } else {
+                                notFoundEmployees.set(aspireId, { name, sources: new Set(['Data Dump']) });
+                            }
                             return;
                         }
 
@@ -1693,8 +1703,11 @@
                 }
                 
                 if (notFoundEmployees.size > 0) {
-                    const list = Array.from(notFoundEmployees).slice(0, 10).join(', ');
-                    const more = notFoundEmployees.size > 10 ? ` ... and ${notFoundEmployees.size - 10} more` : '';
+                    const listItems = Array.from(notFoundEmployees.entries())
+                        .slice(0, 10)
+                        .map(([id, data]) => `${id} (${data.name}) - found in: ${Array.from(data.sources).join(', ')}`)
+                        .join('<br>');
+                    const more = notFoundEmployees.size > 10 ? `<br><em>... and ${notFoundEmployees.size - 10} more</em>` : '';
                     
                     container.innerHTML += `
                         <div class="mb-4 p-4 rounded-lg flex items-start bg-amber-50 border border-amber-200">
@@ -1703,7 +1716,7 @@
                             </svg>
                             <div>
                                 <p class="font-medium text-amber-800">${notFoundEmployees.size} employees not found in NetSuite Employee List</p>
-                                <p class="text-sm mt-1 text-amber-700">${list}${more}</p>
+                                <p class="text-sm mt-1 text-amber-700">${listItems}${more}</p>
                             </div>
                         </div>
                     `;
