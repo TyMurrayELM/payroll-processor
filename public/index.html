@@ -1512,17 +1512,18 @@
                     const aspireId = String(record['Employee #'] || '').trim();
                     if (!aspireId) return;
 
-                    const employee = employeeMap.get(aspireId);
-                    if (!employee) {
-                        notFoundEmployees.add(`${aspireId} (${record['First Name']} ${record['Last Name']})`);
-                        return;
-                    }
-
-                    // Check if work date is within pay period
+                    // Check if work date is within pay period FIRST
+                    // (avoids flagging terminated employees from old pay periods)
                     const workDate = record['Work Date'] || '';
                     if (!isWithinPayPeriod(workDate)) {
                         skippedOutsidePayPeriod++;
                         return; // Skip entries outside the pay period
+                    }
+
+                    const employee = employeeMap.get(aspireId);
+                    if (!employee) {
+                        notFoundEmployees.add(`${aspireId} (${record['First Name']} ${record['Last Name']})`);
+                        return;
                     }
 
                     const hours = parseFloat(record['Hours'] || '0');
