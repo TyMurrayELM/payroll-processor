@@ -1434,7 +1434,7 @@
                 allBranches = new Set();
                 allDivisions = new Set();
                 const employeeMap = buildEmployeeMap();
-                const notFoundEmployees = new Map(); // Map of aspireId -> {name, sources: Set}
+                const notFoundEmployees = new Map(); // Map of aspireId -> {name, sources: [{source, dates}]}
                 const payPeriodEndDate = document.getElementById('payPeriodDate').value;
                 let skippedOutsidePayPeriod = 0;
 
@@ -1524,9 +1524,11 @@
                     if (!employee) {
                         const name = `${record['First Name']} ${record['Last Name']}`;
                         if (notFoundEmployees.has(aspireId)) {
-                            notFoundEmployees.get(aspireId).sources.add('PTO/Holiday');
+                            const entry = notFoundEmployees.get(aspireId);
+                            if (!entry.ptoHolidayDates) entry.ptoHolidayDates = new Set();
+                            entry.ptoHolidayDates.add(workDate);
                         } else {
-                            notFoundEmployees.set(aspireId, { name, sources: new Set(['PTO/Holiday']) });
+                            notFoundEmployees.set(aspireId, { name, ptoHolidayDates: new Set([workDate]) });
                         }
                         return;
                     }
@@ -1599,10 +1601,16 @@
                         const employee = employeeMap.get(aspireId);
                         if (!employee) {
                             const name = record['Employee Display Name'] || 'Unknown';
+                            // Find which dates have hours
+                            const datesWithHours = dateColumns.filter(col => parseFloat(record[col] || '0') > 0)
+                                .map(col => col.replace(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+/, ''));
+                            
                             if (notFoundEmployees.has(aspireId)) {
-                                notFoundEmployees.get(aspireId).sources.add('Aspire Weekly Time Review');
+                                const entry = notFoundEmployees.get(aspireId);
+                                if (!entry.weeklyDates) entry.weeklyDates = new Set();
+                                datesWithHours.forEach(d => entry.weeklyDates.add(d));
                             } else {
-                                notFoundEmployees.set(aspireId, { name, sources: new Set(['Aspire Weekly Time Review']) });
+                                notFoundEmployees.set(aspireId, { name, weeklyDates: new Set(datesWithHours) });
                             }
                             return;
                         }
@@ -1705,7 +1713,16 @@
                 if (notFoundEmployees.size > 0) {
                     const listItems = Array.from(notFoundEmployees.entries())
                         .slice(0, 10)
-                        .map(([id, data]) => `${id} (${data.name}) - found in: ${Array.from(data.sources).join(', ')}`)
+                        .map(([id, data]) => {
+                            let sources = [];
+                            if (data.ptoHolidayDates && data.ptoHolidayDates.size > 0) {
+                                sources.push(`PTO/Holiday (${Array.from(data.ptoHolidayDates).join(', ')})`);
+                            }
+                            if (data.weeklyDates && data.weeklyDates.size > 0) {
+                                sources.push(`Aspire Weekly Time Review (${Array.from(data.weeklyDates).join(', ')})`);
+                            }
+                            return `${id} (${data.name}) - ${sources.join('; ')}`;
+                        })
                         .join('<br>');
                     const more = notFoundEmployees.size > 10 ? `<br><em>... and ${notFoundEmployees.size - 10} more</em>` : '';
                     
