@@ -779,6 +779,12 @@
         // Helper function to derive OT Payroll Item from Primary Earning Item
         function getOTPayrollItem(primaryEarningItem) {
             if (!primaryEarningItem) return '';
+            
+            // Special case: Admin (Indirect)
+            if (primaryEarningItem === 'Reg Pay - Admin (Indirect)') {
+                return 'OT Pay (Indirect) - Admin';
+            }
+            
             // Replace "Reg Pay" with "OT Pay" to get the overtime version
             return primaryEarningItem.replace('Reg Pay', 'OT Pay');
         }
@@ -1162,6 +1168,11 @@
         function derivePrimaryEarningItem(jobTitle, earningType) {
             if (!jobTitle) return '';
             
+            // Special case: Branch Coordinator uses Indirect pay items
+            if (jobTitle === 'Branch Coordinator') {
+                return 'Reg Pay - Admin (Indirect)';
+            }
+            
             // If salary employee, return salary type
             if (earningType === 'Salary') {
                 const salaryMap = {
@@ -1384,6 +1395,23 @@
         function getPayrollItem(primaryEarningItem, payCode, serviceName) {
             if (!primaryEarningItem) return '';
             
+            // Check if this is an Admin (Indirect) employee
+            const isAdmin = primaryEarningItem === 'Reg Pay - Admin (Indirect)';
+            
+            if (isAdmin) {
+                if (payCode === 'PTO') {
+                    if (serviceName && serviceName.toLowerCase().includes('sick')) {
+                        return 'Sick Pay (Indirect) - Admin';
+                    }
+                    return 'PTO (Indirect) - Admin';
+                }
+                if (payCode === 'Hol') {
+                    return 'Holiday Pay (Indirect) Admin';
+                }
+                return primaryEarningItem;
+            }
+            
+            // Standard (direct) employees
             const match = primaryEarningItem.match(/- (.+)$/);
             const jobType = match ? match[1] : '';
             
