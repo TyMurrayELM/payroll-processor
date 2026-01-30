@@ -1416,7 +1416,11 @@
                     if (serviceName && serviceName.toLowerCase().includes('sick')) {
                         return 'Sick Pay (Indirect) - Admin';
                     }
-                    return 'PTO (Indirect) - Admin';
+                    if (serviceName && serviceName.toLowerCase().includes('pto')) {
+                        return 'PTO (Indirect) - Admin';
+                    }
+                    // Unknown PTO type - return null to flag as error
+                    return null;
                 }
                 if (payCode === 'Hol') {
                     return 'Holiday Pay (Indirect) Admin';
@@ -1433,7 +1437,12 @@
                 if (serviceName && serviceName.toLowerCase().includes('sick')) {
                     return `Sick Pay (direct) - ${jobType}`;
                 }
-                return `PTO (direct) - ${jobType}`;
+                // Check if Service Name contains "PTO" (case insensitive)
+                if (serviceName && serviceName.toLowerCase().includes('pto')) {
+                    return `PTO (direct) - ${jobType}`;
+                }
+                // Unknown PTO type - return null to flag as error
+                return null;
             }
             
             if (payCode === 'Hol') {
@@ -1490,6 +1499,7 @@
                 allDivisions = new Set();
                 const employeeMap = buildEmployeeMap();
                 const notFoundEmployees = new Map(); // Map of aspireId -> {name, sources: [{source, dates}]}
+                const unknownPTOTypes = []; // Track PTO entries with unrecognized Service Names
                 const payPeriodEndDate = document.getElementById('payPeriodDate').value;
                 let skippedOutsidePayPeriod = 0;
 
@@ -1601,6 +1611,20 @@
                     const payrollItem = getPayrollItem(employee['Primary Earning Item'], payCode, serviceName);
                     const branch = employee['Branche'] || '';
                     const division = employee['Division'] || '';
+                    
+                    // Check for unknown PTO service name (payrollItem will be null)
+                    if (payrollItem === null) {
+                        unknownPTOTypes.push({
+                            name: `${record['First Name']} ${record['Last Name']}`,
+                            aspireId: aspireId,
+                            serviceName: serviceName || '(empty)',
+                            hours: hours,
+                            date: workDate,
+                            branch: branch,
+                            division: division
+                        });
+                        return; // Skip this record - don't add to output
+                    }
                     
                     allBranches.add(branch);
                     allDivisions.add(division);
@@ -1791,6 +1815,29 @@
                             <div>
                                 <p class="font-medium text-amber-800">${notFoundEmployees.size} employees not found in NetSuite Employee List</p>
                                 <p class="text-sm mt-1 text-amber-700">${listItems}${more}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Show unknown PTO service name errors
+                if (unknownPTOTypes.length > 0) {
+                    const totalHours = unknownPTOTypes.reduce((sum, e) => sum + e.hours, 0);
+                    const listItems = unknownPTOTypes
+                        .slice(0, 15)
+                        .map(e => `${e.name} - "${e.serviceName}" (${e.hours} hrs on ${e.date})`)
+                        .join('<br>');
+                    const more = unknownPTOTypes.length > 15 ? `<br><em>... and ${unknownPTOTypes.length - 15} more</em>` : '';
+                    
+                    container.innerHTML += `
+                        <div class="mb-4 p-4 rounded-lg flex items-start bg-red-50 border border-red-300">
+                            <svg class="w-5 h-5 mr-3 mt-0.5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-red-800">⚠️ ${unknownPTOTypes.length} PTO entries with unrecognized Service Names (${totalHours.toFixed(1)} hrs NOT exported)</p>
+                                <p class="text-sm mt-1 text-red-700">These entries have a PTO Pay Code but the Service Name doesn't contain "PTO" or "Sick":</p>
+                                <p class="text-sm mt-2 text-red-600 font-mono">${listItems}${more}</p>
                             </div>
                         </div>
                     `;
