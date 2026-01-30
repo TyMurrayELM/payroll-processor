@@ -1381,14 +1381,22 @@
             return map;
         }
 
-        function getPayrollItem(primaryEarningItem, payCode) {
+        function getPayrollItem(primaryEarningItem, payCode, serviceName) {
             if (!primaryEarningItem) return '';
             
             const match = primaryEarningItem.match(/- (.+)$/);
             const jobType = match ? match[1] : '';
             
-            if (payCode === 'PTO' || payCode === 'Hol') {
+            if (payCode === 'PTO') {
+                // Check if Service Name contains "Sick" (case insensitive)
+                if (serviceName && serviceName.toLowerCase().includes('sick')) {
+                    return `Sick Pay (direct) - ${jobType}`;
+                }
                 return `PTO (direct) - ${jobType}`;
+            }
+            
+            if (payCode === 'Hol') {
+                return 'Holiday Pay (direct)';
             }
             
             return primaryEarningItem;
@@ -1542,7 +1550,8 @@
                     // Skip 'Reg' entries from PTO dump - these will come from Data Dump
                     if (payCode === 'Reg' || payCode === '') return;
                     
-                    const payrollItem = getPayrollItem(employee['Primary Earning Item'], payCode);
+                    const serviceName = record['Service Name'] || '';
+                    const payrollItem = getPayrollItem(employee['Primary Earning Item'], payCode, serviceName);
                     const branch = employee['Branche'] || '';
                     const division = employee['Division'] || '';
                     
