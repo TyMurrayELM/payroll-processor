@@ -185,6 +185,10 @@
                             <span class="text-sm text-gray-600">PTO</span>
                         </div>
                         <div class="flex items-center">
+                            <div class="w-4 h-4 rounded bg-blue-200 mr-2"></div>
+                            <span class="text-sm text-gray-600">Sick</span>
+                        </div>
+                        <div class="flex items-center">
                             <div class="w-4 h-4 rounded bg-amber-200 mr-2"></div>
                             <span class="text-sm text-gray-600">Holiday</span>
                         </div>
@@ -299,6 +303,7 @@
                                 <option value="">All Pay Types</option>
                                 <option value="REG">Regular</option>
                                 <option value="PTO">PTO</option>
+                                <option value="SICK">Sick</option>
                                 <option value="HOL">Holiday</option>
                                 <option value="OT">Overtime</option>
                             </select>
@@ -592,6 +597,14 @@
             if (alertType === 'summary' && summaryData) {
                 const avgHours = summaryData.employeeCount > 0 ? (summaryData.totalHours / summaryData.employeeCount).toFixed(1) : '0.0';
                 
+                // Build hours breakdown, only including non-zero values
+                let hoursLines = [`• Total: ${formatNumber(summaryData.totalHours)} hrs`];
+                if (summaryData.regHours > 0) hoursLines.push(`• Regular: ${formatNumber(summaryData.regHours)} hrs`);
+                if (summaryData.ptoHours > 0) hoursLines.push(`• PTO: ${formatNumber(summaryData.ptoHours)} hrs`);
+                if (summaryData.sickHours > 0) hoursLines.push(`• Sick: ${formatNumber(summaryData.sickHours)} hrs`);
+                if (summaryData.holHours > 0) hoursLines.push(`• Holiday: ${formatNumber(summaryData.holHours)} hrs`);
+                if (summaryData.otHours > 0) hoursLines.push(`• OT: ${formatNumber(summaryData.otHours)} hrs`);
+                
                 blocks = [
                     {
                         type: 'section',
@@ -611,7 +624,7 @@
                         type: 'section',
                         text: {
                             type: 'mrkdwn',
-                            text: `*Hours Breakdown:*\n• Total: ${formatNumber(summaryData.totalHours)} hrs\n• Regular: ${formatNumber(summaryData.regHours)} hrs\n• PTO/Sick: ${formatNumber(summaryData.ptoHours)} hrs\n• Holiday: ${formatNumber(summaryData.holHours)} hrs\n• OT: ${formatNumber(summaryData.otHours)} hrs`
+                            text: `*Hours Breakdown:*\n${hoursLines.join('\n')}`
                         }
                     },
                     {
@@ -1431,8 +1444,14 @@
         }
 
         function getPayType(payCode, payrollItem) {
-            if (payCode === 'PTO') return 'PTO';
             if (payCode === 'Hol') return 'HOL';
+            if (payCode === 'PTO') {
+                // Check if it's sick pay based on payroll item
+                if (payrollItem && payrollItem.toLowerCase().includes('sick pay')) {
+                    return 'SICK';
+                }
+                return 'PTO';
+            }
             if (payrollItem && payrollItem.toLowerCase().includes('ot pay')) return 'OT';
             return 'REG';
         }
@@ -1799,7 +1818,7 @@
             document.getElementById('summarySection').classList.remove('hidden');
             
             // Calculate totals
-            let regHours = 0, ptoHours = 0, holHours = 0, otHours = 0;
+            let regHours = 0, ptoHours = 0, sickHours = 0, holHours = 0, otHours = 0;
             const branchData = {};
             const divisionData = {};
             const uniqueEmployees = new Set();
@@ -1816,6 +1835,7 @@
                 // By pay type
                 if (payType === 'REG') regHours += hours;
                 else if (payType === 'PTO') ptoHours += hours;
+                else if (payType === 'SICK') sickHours += hours;
                 else if (payType === 'HOL') holHours += hours;
                 else if (payType === 'OT') otHours += hours;
                 
@@ -1823,7 +1843,7 @@
                 
                 // By branch (with division breakdown)
                 if (!branchData[branch]) {
-                    branchData[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), divisions: {} };
+                    branchData[branch] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set(), divisions: {} };
                 }
                 if (branchData[branch].hasOwnProperty(payTypeKey)) {
                     branchData[branch][payTypeKey] += hours;
@@ -1833,7 +1853,7 @@
                 
                 // Track division within branch
                 if (!branchData[branch].divisions[division]) {
-                    branchData[branch].divisions[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                    branchData[branch].divisions[division] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
                 }
                 if (branchData[branch].divisions[division].hasOwnProperty(payTypeKey)) {
                     branchData[branch].divisions[division][payTypeKey] += hours;
@@ -1843,7 +1863,7 @@
                 
                 // By division (with branch breakdown)
                 if (!divisionData[division]) {
-                    divisionData[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), branches: {} };
+                    divisionData[division] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set(), branches: {} };
                 }
                 if (divisionData[division].hasOwnProperty(payTypeKey)) {
                     divisionData[division][payTypeKey] += hours;
@@ -1853,7 +1873,7 @@
                 
                 // Track branch within division
                 if (!divisionData[division].branches[branch]) {
-                    divisionData[division].branches[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                    divisionData[division].branches[branch] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
                 }
                 if (divisionData[division].branches[branch].hasOwnProperty(payTypeKey)) {
                     divisionData[division].branches[branch][payTypeKey] += hours;
@@ -1931,22 +1951,22 @@
                 
                 // Ensure branch exists
                 if (!branchData[branch]) {
-                    branchData[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), divisions: {} };
+                    branchData[branch] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set(), divisions: {} };
                 }
                 
                 // Ensure division within branch exists
                 if (!branchData[branch].divisions[division]) {
-                    branchData[branch].divisions[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                    branchData[branch].divisions[division] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
                 }
                 
                 // Ensure division exists in divisionData
                 if (!divisionData[division]) {
-                    divisionData[division] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set(), branches: {} };
+                    divisionData[division] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set(), branches: {} };
                 }
                 
                 // Ensure branch within division exists
                 if (!divisionData[division].branches[branch]) {
-                    divisionData[division].branches[branch] = { reg: 0, pto: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
+                    divisionData[division].branches[branch] = { reg: 0, pto: 0, sick: 0, hol: 0, ot: 0, total: 0, employees: new Set() };
                 }
             });
             
@@ -2028,6 +2048,7 @@
                                     totalHours: divData.total,
                                     regHours: divData.reg,
                                     ptoHours: divData.pto,
+                                    sickHours: divData.sick,
                                     holHours: divData.hol,
                                     otHours: divData.ot,
                                     employeeCount: divData.employees.size,
@@ -2461,6 +2482,9 @@
                 if (payType === 'PTO') {
                     rowClass = 'pay-type-pto';
                     badge = '<span class="px-2 py-1 text-xs font-medium bg-green-200 text-green-800 rounded">PTO</span>';
+                } else if (payType === 'SICK') {
+                    rowClass = 'pay-type-pto';
+                    badge = '<span class="px-2 py-1 text-xs font-medium bg-blue-200 text-blue-800 rounded">SICK</span>';
                 } else if (payType === 'HOL') {
                     rowClass = 'pay-type-hol';
                     badge = '<span class="px-2 py-1 text-xs font-medium bg-amber-200 text-amber-800 rounded">HOL</span>';
