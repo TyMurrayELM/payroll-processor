@@ -1628,12 +1628,13 @@
                         allBranches.add(branch);
                         allDivisions.add(division);
 
-                        // Subtract PTO/Holiday hours from total to get Regular hours
+                        // Subtract PTO/Holiday hours AND OT hours from total to get Regular hours
+                        // The Data Dump total includes OT, so we need to subtract it to avoid double-counting
                         const empPTOData = employeePTOHours.get(aspireId) || { pto: 0, hol: 0 };
                         const ptoHoursToSubtract = empPTOData.pto + empPTOData.hol;
-                        const regularHours = totalHours - ptoHoursToSubtract;
+                        const regularHours = totalHours - ptoHoursToSubtract - otHours;
 
-                        // Regular hours (total minus PTO/Holiday)
+                        // Regular hours (total minus PTO/Holiday and OT)
                         if (regularHours > 0) {
                             outputData.push({
                                 'Employee ID': employee['EMPLOYEE ID'],
