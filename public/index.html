@@ -1441,6 +1441,10 @@
                 if (serviceName && serviceName.toLowerCase().includes('pto')) {
                     return `PTO (direct) - ${jobType}`;
                 }
+                // Check if Service Name contains "Parent" (for Parental Leave)
+                if (serviceName && serviceName.toLowerCase().includes('parent')) {
+                    return 'Parental Leave - (direct)';
+                }
                 // Unknown PTO type - return null to flag as error
                 return null;
             }
