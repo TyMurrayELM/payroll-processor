@@ -1861,6 +1861,11 @@
             }, 100);
         }
 
+        // Helper function to normalize strings for comparison
+        function normalizeStr(str) {
+            return (str || '').trim().toLowerCase();
+        }
+        
         function updateSummaryStats() {
             document.getElementById('summarySection').classList.remove('hidden');
             
@@ -1873,8 +1878,8 @@
             outputData.forEach(row => {
                 const hours = parseFloat(row['Duration']) || 0;
                 const payType = row['_PayType'] || 'REG';
-                const branch = row['Location'] || 'Unknown';
-                const division = row['Division'] || 'Unknown';
+                const branch = (row['Location'] || 'Unknown').trim();
+                const division = (row['Division'] || 'Unknown').trim();
                 const employeeId = row['Employee ID'];
                 
                 uniqueEmployees.add(employeeId);
@@ -1947,8 +1952,8 @@
             outputData.forEach(row => {
                 const employeeId = row['Employee ID'];
                 const hours = parseFloat(row['Duration']) || 0;
-                const branch = row['Location'] || 'Unknown';
-                const division = row['Division'] || 'Unknown';
+                const branch = (row['Location'] || 'Unknown').trim();
+                const division = (row['Division'] || 'Unknown').trim();
                 const name = row['Traditional name'] || row['Aspire Name'] || employeeId;
                 
                 if (!employeeHours[employeeId]) {
@@ -1968,9 +1973,9 @@
                 const empId = emp['EMPLOYEE ID'];
                 if (empId) {
                     allEmployeesInSystem.set(empId, {
-                        name: `${emp['First Name']} ${emp['Last Name']}`,
-                        branch: emp['Branche'] || 'Unknown',
-                        division: emp['Division'] || 'Unknown'
+                        name: `${emp['First Name']} ${emp['Last Name']}`.trim(),
+                        branch: (emp['Branche'] || 'Unknown').trim(),
+                        division: (emp['Division'] || 'Unknown').trim()
                     });
                 }
             });
@@ -2039,7 +2044,10 @@
                             // Get employees for this branch+division
                             const divEmployees = {};
                             outputData.forEach(row => {
-                                if (row['Location'] === branch && row['Division'] === div) {
+                                // Trim to match how branchData was built
+                                const rowBranch = (row['Location'] || 'Unknown').trim();
+                                const rowDivision = (row['Division'] || 'Unknown').trim();
+                                if (rowBranch === branch && rowDivision === div) {
                                     const empId = row['Employee ID'];
                                     const hours = parseFloat(row['Duration']) || 0;
                                     if (!divEmployees[empId]) {
@@ -2066,7 +2074,10 @@
                             // Get OT employees for this branch+division
                             const divOTEmps = [];
                             outputData.forEach(row => {
-                                if (row['Location'] === branch && row['Division'] === div && row['_PayType'] === 'OT') {
+                                // Trim to match how branchData was built
+                                const rowBranch = (row['Location'] || 'Unknown').trim();
+                                const rowDivision = (row['Division'] || 'Unknown').trim();
+                                if (rowBranch === branch && rowDivision === div && row['_PayType'] === 'OT') {
                                     const empName = row['Traditional name'] || row['Aspire Name'] || row['Employee ID'];
                                     const otHours = parseFloat(row['Duration']) || 0;
                                     // Check if already in list, if so add hours
@@ -2240,7 +2251,10 @@
                             // Get employees for this division+branch
                             const brEmployees = {};
                             outputData.forEach(row => {
-                                if (row['Division'] === division && row['Location'] === br) {
+                                // Trim to match how divisionData was built
+                                const rowDivision = (row['Division'] || 'Unknown').trim();
+                                const rowBranch = (row['Location'] || 'Unknown').trim();
+                                if (rowDivision === division && rowBranch === br) {
                                     const empId = row['Employee ID'];
                                     const hours = parseFloat(row['Duration']) || 0;
                                     if (!brEmployees[empId]) {
@@ -2263,7 +2277,10 @@
                             // Get OT employees for this division+branch
                             const brOTEmps = [];
                             outputData.forEach(row => {
-                                if (row['Division'] === division && row['Location'] === br && row['_PayType'] === 'OT') {
+                                // Trim to match how divisionData was built
+                                const rowDivision = (row['Division'] || 'Unknown').trim();
+                                const rowBranch = (row['Location'] || 'Unknown').trim();
+                                if (rowDivision === division && rowBranch === br && row['_PayType'] === 'OT') {
                                     const empName = row['Traditional name'] || row['Aspire Name'] || row['Employee ID'];
                                     const otHours = parseFloat(row['Duration']) || 0;
                                     const existing = brOTEmps.find(e => e.name === empName);
