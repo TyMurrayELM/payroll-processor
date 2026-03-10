@@ -622,17 +622,16 @@
                     },
                     {
                         type: 'section',
-                        text: {
-                            type: 'mrkdwn',
-                            text: `*Hours Breakdown:*\n${hoursLines.join('\n')}`
-                        }
-                    },
-                    {
-                        type: 'section',
-                        text: {
-                            type: 'mrkdwn',
-                            text: `*Employee Stats:*\n• Total Employees: ${summaryData.employeeCount}\n• With OT: ${summaryData.otCount}\n• Under 40 hrs: ${summaryData.under40Count}\n• No Hours: ${summaryData.noHoursCount}\n• Avg Hours/Employee: ${avgHours} hrs`
-                        }
+                        fields: [
+                            {
+                                type: 'mrkdwn',
+                                text: `*Hours Breakdown:*\n${hoursLines.join('\n')}`
+                            },
+                            {
+                                type: 'mrkdwn',
+                                text: `*Employee Stats:*\n• Total Employees: ${summaryData.employeeCount}\n• With OT: ${summaryData.otCount}\n• Under 40 hrs: ${summaryData.under40Count}\n• No Hours: ${summaryData.noHoursCount}\n• Avg Hours/Employee: ${avgHours} hrs`
+                            }
+                        ]
                     }
                 ];
                 
