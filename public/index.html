@@ -1434,7 +1434,12 @@
             if (payCode === 'PTO') {
                 // Check if Service Name contains "Sick" (case insensitive)
                 if (serviceName && serviceName.toLowerCase().includes('sick')) {
-                    return `Sick Pay (direct) - ${jobType}`;
+                    // Some NetSuite sick pay item names are shortened to fit character limit
+                    const sickPayOverrides = {
+                        'Irrigation FL': 'SickPay (direct) - Irrigation T',
+                        'Maint ONsite FL': 'SickPay (direct) - Maint Onsite',
+                    };
+                    return sickPayOverrides[jobType] || `Sick Pay (direct) - ${jobType}`;
                 }
                 // Check if Service Name contains "PTO" (case insensitive)
                 if (serviceName && serviceName.toLowerCase().includes('pto')) {
