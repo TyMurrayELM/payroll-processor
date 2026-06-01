@@ -39,7 +39,8 @@ export async function POST(request) {
       'U07JRUEEYRW',
 'U051V85D7QE',
       'U01QVSRPV63',
-      'U0AQ0CES1PC'
+      'U0AQ0CES1PC',
+      'U0A4BMLPL9X'
     ];
     
     // Check authorization for Approve/Reject (Correcting is open to anyone)
