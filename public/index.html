@@ -119,6 +119,12 @@
                         </svg>
                         <span id="downloadText">Download CSV</span>
                     </button>
+                    <button id="downloadHolidayBtn" onclick="downloadHolidayCSV()" class="hidden px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        <span id="downloadHolidayText">Download Holiday Only</span>
+                    </button>
                     <button onclick="clearAllData()" class="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -425,6 +431,15 @@
                     
                     document.getElementById('downloadBtn').classList.remove('hidden');
                     document.getElementById('downloadText').textContent = `Download CSV (${outputData.length} records)`;
+
+                    const holidayCount = outputData.filter(row => row._PayCode === 'Hol').length;
+                    const holidayBtn = document.getElementById('downloadHolidayBtn');
+                    if (holidayCount > 0) {
+                        holidayBtn.classList.remove('hidden');
+                        document.getElementById('downloadHolidayText').textContent = `Download Holiday Only (${holidayCount} records)`;
+                    } else {
+                        holidayBtn.classList.add('hidden');
+                    }
                     
                     updateSummaryStats();
                     populateBranchFilter();
@@ -486,7 +501,8 @@
             document.getElementById('summarySection').classList.add('hidden');
             document.getElementById('previewSection').classList.add('hidden');
             document.getElementById('downloadBtn').classList.add('hidden');
-            
+            document.getElementById('downloadHolidayBtn').classList.add('hidden');
+
             updateProcessButton();
             
             alert('All data cleared!');
@@ -1413,7 +1429,7 @@
             if (isAdmin) {
                 if (payCode === 'PTO') {
                     if (serviceName && serviceName.toLowerCase().includes('sick')) {
-                        return 'Sick Pay (Indirect) - Admin';
+                        return 'Sick Pay (indirect) - Admin';
                     }
                     if (serviceName && serviceName.toLowerCase().includes('pto')) {
                         return 'PTO (Indirect) - Admin';
@@ -1422,7 +1438,7 @@
                     return null;
                 }
                 if (payCode === 'Hol') {
-                    return 'Holiday Pay (Indirect) Admin';
+                    return 'Holiday Pay (Indirect) - Admin';
                 }
                 return primaryEarningItem;
             }
@@ -1436,8 +1452,8 @@
                 if (serviceName && serviceName.toLowerCase().includes('sick')) {
                     // Some NetSuite sick pay item names are shortened to fit character limit
                     const sickPayOverrides = {
-                        'Irrigation FL': 'SickPay (direct) - Irrigation T',
-                        'Maint ONsite FL': 'SickPay (direct) - Maint Onsite',
+                        'Irrigation T': 'SickPay (direct) - Irrigation T',
+                        'Maint Onsite': 'SickPay (direct) - Maint Onsite',
                     };
                     return sickPayOverrides[jobType] || `Sick Pay (direct) - ${jobType}`;
                 }
@@ -1454,7 +1470,25 @@
             }
             
             if (payCode === 'Hol') {
-                return 'Holiday Pay (direct)';
+                // Holiday pay is job-type-specific in NetSuite. Names are truncated
+                // to the payroll-item character limit, so map jobType to the exact
+                // NetSuite item name rather than interpolating ${jobType}.
+                const holidayPayItems = {
+                    'Arb CL': 'Holiday Pay (direct) - Arb CL',
+                    'Arb Climber': 'Holiday Pay (direct) - Arb Clim',
+                    'Arb GM': 'Holiday Pay (direct) - Arb GM',
+                    'Enh CL': 'Holiday Pay (direct) - Enh CL',
+                    'Enh FL': 'Holiday Pay (direct) - Enh FL',
+                    'Irrigation T': 'Holiday Pay (direct) - Irrigati',
+                    'Maint CL': 'Holiday Pay (direct) - Maint CL',
+                    'Maint FL': 'Holiday Pay (direct) - Maint FL',
+                    'Maint Onsite': 'Holiday Pay (direct) - Maint On',
+                    'Mechanic': 'Holiday Pay (direct) - Mechanic',
+                    'Spray Tech': 'Holiday Pay (direct) - Spray Te',
+                };
+                // Unmapped job type -> null flags it in the unknown-type error list
+                // instead of silently exporting an item NetSuite will reject.
+                return holidayPayItems[jobType] || null;
             }
             
             return primaryEarningItem;
@@ -1857,6 +1891,15 @@
                 if (outputData.length > 0) {
                     document.getElementById('downloadBtn').classList.remove('hidden');
                     document.getElementById('downloadText').textContent = `Download CSV (${outputData.length} records)`;
+
+                    const holidayCount = outputData.filter(row => row._PayCode === 'Hol').length;
+                    const holidayBtn = document.getElementById('downloadHolidayBtn');
+                    if (holidayCount > 0) {
+                        holidayBtn.classList.remove('hidden');
+                        document.getElementById('downloadHolidayText').textContent = `Download Holiday Only (${holidayCount} records)`;
+                    } else {
+                        holidayBtn.classList.add('hidden');
+                    }
                     
                     updateSummaryStats();
                     populateBranchFilter();
@@ -2652,6 +2695,35 @@
             
             link.setAttribute('href', url);
             link.setAttribute('download', `NetSuite_Upload_${date}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadHolidayCSV() {
+            // Holiday-only export: just the 'Hol' pay-code rows, for re-importing
+            // holiday hours into NetSuite on their own.
+            const holidayRows = outputData.filter(row => row._PayCode === 'Hol');
+            if (holidayRows.length === 0) {
+                alert('No Holiday records to download.');
+                return;
+            }
+
+            // Strip internal fields, same as the full export
+            const exportData = holidayRows.map(row => {
+                const { _PayType, _PayCode, ...rest } = row;
+                return rest;
+            });
+
+            const csv = Papa.unparse(exportData);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const date = new Date().toISOString().split('T')[0];
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', `NetSuite_Upload_Holiday_${date}.csv`);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
