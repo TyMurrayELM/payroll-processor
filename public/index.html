@@ -1310,10 +1310,17 @@
             if (!hasEmployeeNum) missing.push('"Employee #"');
             if (!hasWorkDate) missing.push('"Work Date"');
             if (!hasHours) missing.push('"Hours"');
-            
+
             if (missing.length > 0) {
-                return { 
-                    valid: false, 
+                // Cross-slot detection: this is the Weekly Hours file
+                if (firstRow.hasOwnProperty('Employee Number') && firstRow.hasOwnProperty('Total')) {
+                    return {
+                        valid: false,
+                        message: `⚠️ This looks like the Weekly Hours export.\n\nDrop it in the "Data Dump from Aspire" box instead — this box is for the Time Entry (PTO/Holiday) export.`
+                    };
+                }
+                return {
+                    valid: false,
                     message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Aspire Time Entry Grid Export (.xlsx)\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
                 };
             }
@@ -1336,10 +1343,17 @@
             const missing = [];
             if (!hasEmployeeNum) missing.push('"Employee Number"');
             if (!hasTotal) missing.push('"Total"');
-            
+
             if (missing.length > 0) {
-                return { 
-                    valid: false, 
+                // Cross-slot detection: this is the Time Entry (PTO) file
+                if (firstRow.hasOwnProperty('Employee #') && firstRow.hasOwnProperty('Work Date')) {
+                    return {
+                        valid: false,
+                        message: `⚠️ This looks like the Time Entry (PTO/Holiday) export.\n\nDrop it in the "PTO Dump from Aspire" box instead — this box is for the Weekly Hours export.`
+                    };
+                }
+                return {
+                    valid: false,
                     message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Aspire Weekly Hours Data Dump (.csv)\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
                 };
             }
