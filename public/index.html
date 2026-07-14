@@ -356,6 +356,7 @@
         // Data storage
         let ptoData = [];
         let dataDumpData = [];
+        let lastUploadInfo = '';
         let employeeData = [];
         let outputData = [];
         let allBranches = new Set();
@@ -857,7 +858,8 @@
             if (!file) return;
 
             const fileName = file.name.toLowerCase();
-            
+            lastUploadInfo = `\n\n📄 Received: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+
             // Determine which dropzone to update based on type
             const dropzoneMap = {
                 'pto': { dropzone: 'ptoDropzone', icon: 'ptoIcon', status: 'ptoStatus', expected: 'Aspire Time Entry Grid Export (.xlsx)' },
@@ -1236,6 +1238,7 @@
         }
 
         function updateDropzone(dropzoneId, iconId, statusId, statusText, isValid = true) {
+            if (!isValid && lastUploadInfo && !statusText.includes('📄')) statusText += lastUploadInfo;
             const dropzone = document.getElementById(dropzoneId);
             const icon = document.getElementById(iconId);
             const status = document.getElementById(statusId);
