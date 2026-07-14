@@ -978,14 +978,32 @@
             
             // Read shared strings
             const sharedStrings = [];
+            let ssFallback = false;
+            let ssRawLen = -1;
             const sharedStringsFile = zip.file('xl/sharedStrings.xml');
             if (sharedStringsFile) {
                 const ssContent = await sharedStringsFile.async('string');
+                ssRawLen = ssContent.length;
                 const parser = new DOMParser();
                 const ssDoc = parser.parseFromString(ssContent, 'text/xml');
                 const tElements = ssDoc.getElementsByTagName('t');
                 for (let t of tElements) {
                     sharedStrings.push(t.textContent || '');
+                }
+                // Fallback: if DOM parsing yielded nothing but the XML clearly
+                // has string entries, extract them with regex instead
+                if (sharedStrings.length === 0 && ssContent.indexOf('<si') !== -1) {
+                    ssFallback = true;
+                    const decode = s => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+                    const siMatches = ssContent.match(/<si(?:\s[^>]*)?>[\s\S]*?<\/si>/g) || [];
+                    for (const si of siMatches) {
+                        let text = '';
+                        const tMatches = si.match(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g) || [];
+                        for (const t of tMatches) {
+                            text += decode(t.replace(/^<t(?:\s[^>]*)?>/, '').replace(/<\/t>$/, ''));
+                        }
+                        sharedStrings.push(text);
+                    }
                 }
             }
             
@@ -1024,7 +1042,7 @@
                 }
             }
             
-            lastParseDebug = `\n\n🔍 Debug: rows=${rows.length}, sharedStrings=${sharedStrings.length}, headerCells=${headerCells.length}, headers=[${headers.slice(0, 8).join(' | ')}]\nUA: ${navigator.userAgent.slice(0, 120)}`;
+            lastParseDebug = `\n\n🔍 Debug: rows=${rows.length}, sharedStrings=${sharedStrings.length}${ssFallback ? ' (regex fallback)' : ''}, ssRawLen=${ssRawLen}, headerCells=${headerCells.length}, headers=[${headers.slice(0, 8).join(' | ')}]\nUA: ${navigator.userAgent.slice(0, 120)}`;
 
             // Parse data rows
             const result = [];
