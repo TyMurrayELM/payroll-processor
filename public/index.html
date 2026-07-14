@@ -357,6 +357,7 @@
         let ptoData = [];
         let dataDumpData = [];
         let lastUploadInfo = '';
+        let lastParseDebug = '';
         let employeeData = [];
         let outputData = [];
         let allBranches = new Set();
@@ -859,6 +860,7 @@
 
             const fileName = file.name.toLowerCase();
             lastUploadInfo = `\n\n📄 Received: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            lastParseDebug = '';
 
             // Determine which dropzone to update based on type
             const dropzoneMap = {
@@ -989,7 +991,10 @@
             
             // Read sheet1
             const sheetFile = zip.file('xl/worksheets/sheet1.xml');
-            if (!sheetFile) return [];
+            if (!sheetFile) {
+                lastParseDebug = `\n\n🔍 Debug: no sheet1.xml — zip entries: ${Object.keys(zip.files).join(', ')}`;
+                return [];
+            }
             
             const sheetContent = await sheetFile.async('string');
             const parser = new DOMParser();
@@ -1019,6 +1024,8 @@
                 }
             }
             
+            lastParseDebug = `\n\n🔍 Debug: rows=${rows.length}, sharedStrings=${sharedStrings.length}, headerCells=${headerCells.length}, headers=[${headers.slice(0, 8).join(' | ')}]\nUA: ${navigator.userAgent.slice(0, 120)}`;
+
             // Parse data rows
             const result = [];
             for (let i = 1; i < rows.length; i++) {
@@ -1238,7 +1245,7 @@
         }
 
         function updateDropzone(dropzoneId, iconId, statusId, statusText, isValid = true) {
-            if (!isValid && lastUploadInfo && !statusText.includes('📄')) statusText += lastUploadInfo;
+            if (!isValid && lastUploadInfo && !statusText.includes('📄')) statusText += lastUploadInfo + lastParseDebug;
             const dropzone = document.getElementById(dropzoneId);
             const icon = document.getElementById(iconId);
             const status = document.getElementById(statusId);
