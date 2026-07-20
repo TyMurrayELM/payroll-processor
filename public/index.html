@@ -21,7 +21,7 @@
         <!-- Header -->
         <div class="text-center mb-10">
             <h1 class="text-4xl font-bold text-white mb-2">Payroll Processor</h1>
-            <p class="text-slate-400">Convert Aspire data dumps to NetSuite upload format</p>
+            <p class="text-slate-400">Combine Aspire data dumps + maintenance crew exports into one NetSuite upload</p>
         </div>
 
         <!-- Main Card -->
@@ -33,7 +33,7 @@
                     Upload Your Files
                 </h2>
                 
-                <div class="grid md:grid-cols-3 gap-6">
+                <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <!-- PTO Dump -->
                     <div class="relative">
                         <div id="ptoDropzone" class="border-2 border-dashed rounded-xl p-6 text-center transition-all border-gray-300 hover:border-blue-400 cursor-pointer">
@@ -59,6 +59,20 @@
                             </div>
                             <p class="font-medium text-gray-700">Data Dump from Aspire</p>
                             <p class="text-sm text-gray-500 mt-1" id="dataDumpStatus">Regular work hours</p>
+                        </div>
+                    </div>
+
+                    <!-- Maintenance Crews (new system) -->
+                    <div class="relative">
+                        <div id="maintDropzone" class="border-2 border-dashed rounded-xl p-6 text-center transition-all border-gray-300 hover:border-blue-400 cursor-pointer">
+                            <input type="file" id="maintFile" accept=".csv,.xlsx,.xls" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <div class="mb-3" id="maintIcon">
+                                <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                            </div>
+                            <p class="font-medium text-gray-700">Maintenance Crews Upload</p>
+                            <p class="text-sm text-gray-500 mt-1" id="maintStatus">New system export (.csv)</p>
                         </div>
                     </div>
 
@@ -356,6 +370,7 @@
         // Data storage
         let ptoData = [];
         let dataDumpData = [];
+        let maintData = [];
         let lastUploadInfo = '';
         let lastParseDebug = '';
         let employeeData = [];
@@ -367,6 +382,7 @@
         const STORAGE_KEYS = {
             ptoData: 'payroll_ptoData',
             dataDumpData: 'payroll_dataDumpData',
+            maintData: 'payroll_maintData',
             employeeData: 'payroll_employeeData',
             outputData: 'payroll_outputData',
             payPeriodDate: 'payroll_payPeriodDate'
@@ -377,6 +393,7 @@
             try {
                 localStorage.setItem(STORAGE_KEYS.ptoData, JSON.stringify(ptoData));
                 localStorage.setItem(STORAGE_KEYS.dataDumpData, JSON.stringify(dataDumpData));
+                localStorage.setItem(STORAGE_KEYS.maintData, JSON.stringify(maintData));
                 localStorage.setItem(STORAGE_KEYS.employeeData, JSON.stringify(employeeData));
                 localStorage.setItem(STORAGE_KEYS.outputData, JSON.stringify(outputData));
                 const payPeriodDate = document.getElementById('payPeriodDate').value;
@@ -394,12 +411,14 @@
             try {
                 const storedPTO = localStorage.getItem(STORAGE_KEYS.ptoData);
                 const storedDataDump = localStorage.getItem(STORAGE_KEYS.dataDumpData);
+                const storedMaint = localStorage.getItem(STORAGE_KEYS.maintData);
                 const storedEmployee = localStorage.getItem(STORAGE_KEYS.employeeData);
                 const storedOutput = localStorage.getItem(STORAGE_KEYS.outputData);
                 const storedPayPeriod = localStorage.getItem(STORAGE_KEYS.payPeriodDate);
-                
+
                 if (storedPTO) ptoData = JSON.parse(storedPTO);
                 if (storedDataDump) dataDumpData = JSON.parse(storedDataDump);
+                if (storedMaint) maintData = JSON.parse(storedMaint);
                 if (storedEmployee) employeeData = JSON.parse(storedEmployee);
                 if (storedOutput) outputData = JSON.parse(storedOutput);
                 
@@ -417,6 +436,10 @@
                 if (dataDumpData.length > 0) {
                     const validation = validateDataDumpFile(dataDumpData);
                     updateDropzone('dataDumpDropzone', 'dataDumpIcon', 'dataDumpStatus', validation.message, validation.valid);
+                }
+                if (maintData.length > 0) {
+                    const validation = validateMaintFile(maintData);
+                    updateDropzone('maintDropzone', 'maintIcon', 'maintStatus', validation.message, validation.valid);
                 }
                 if (employeeData.length > 0) {
                     const validation = validateEmployeeFile(employeeData);
@@ -450,7 +473,7 @@
                 }
                 
                 console.log('Data loaded from localStorage');
-                return storedPTO || storedDataDump || storedEmployee;
+                return storedPTO || storedDataDump || storedMaint || storedEmployee;
             } catch (e) {
                 console.warn('Could not load from localStorage:', e);
                 return false;
@@ -469,6 +492,7 @@
             // Reset variables
             ptoData = [];
             dataDumpData = [];
+            maintData = [];
             employeeData = [];
             outputData = [];
             allBranches = new Set();
@@ -479,7 +503,7 @@
             document.getElementById('payPeriodDisplay').classList.add('hidden');
             
             // Reset dropzones
-            ['pto', 'dataDump', 'employee'].forEach(type => {
+            ['pto', 'dataDump', 'maint', 'employee'].forEach(type => {
                 const dropzone = document.getElementById(`${type}Dropzone`);
                 const icon = document.getElementById(`${type}Icon`);
                 const status = document.getElementById(`${type}Status`);
@@ -494,6 +518,7 @@
                 const defaultStatus = {
                     pto: 'PTO & Holiday hours',
                     dataDump: 'Regular work hours',
+                    maint: 'New system export (.csv)',
                     employee: 'Employee mapping data'
                 };
                 status.innerHTML = `<span class="text-gray-500">${defaultStatus[type]}</span>`;
@@ -852,6 +877,7 @@
         // File input handlers
         document.getElementById('ptoFile').addEventListener('change', (e) => handleFileUpload(e, 'pto'));
         document.getElementById('dataDumpFile').addEventListener('change', (e) => handleFileUpload(e, 'dataDump'));
+        document.getElementById('maintFile').addEventListener('change', (e) => handleFileUpload(e, 'maint'));
         document.getElementById('employeeFile').addEventListener('change', (e) => handleFileUpload(e, 'employee'));
 
         function handleFileUpload(event, type) {
@@ -866,6 +892,7 @@
             const dropzoneMap = {
                 'pto': { dropzone: 'ptoDropzone', icon: 'ptoIcon', status: 'ptoStatus', expected: 'Aspire Time Entry Grid Export (.xlsx)' },
                 'dataDump': { dropzone: 'dataDumpDropzone', icon: 'dataDumpIcon', status: 'dataDumpStatus', expected: 'Aspire Weekly Hours Data Dump (.csv)' },
+                'maint': { dropzone: 'maintDropzone', icon: 'maintIcon', status: 'maintStatus', expected: 'Maintenance Crews Upload (.csv) with NetSuite upload columns' },
                 'employee': { dropzone: 'employeeDropzone', icon: 'employeeIcon', status: 'employeeStatus', expected: 'NetSuite Employee Export (.xls)' }
             };
             const dz = dropzoneMap[type];
@@ -917,6 +944,10 @@
                                 dataDumpData = data;
                                 const validation = validateDataDumpFile(data);
                                 updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            } else if (type === 'maint') {
+                                maintData = data;
+                                const validation = validateMaintFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
                             } else if (type === 'employee') {
                                 employeeData = data;
                                 const validation = validateEmployeeFile(data);
@@ -945,12 +976,16 @@
                                 dataDumpData = data;
                                 const validation = validateDataDumpFile(data);
                                 updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
+                            } else if (type === 'maint') {
+                                maintData = data;
+                                const validation = validateMaintFile(data);
+                                updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
                             } else if (type === 'employee') {
                                 employeeData = data;
                                 const validation = validateEmployeeFile(data);
                                 updateDropzone(dz.dropzone, dz.icon, dz.status, validation.message, validation.valid);
                             }
-                            
+
                             updateProcessButton();
                         },
                         error: function(err) {
@@ -1347,6 +1382,13 @@
                         message: `⚠️ This looks like the Weekly Hours export.\n\nDrop it in the "Data Dump from Aspire" box instead — this box is for the Time Entry (PTO/Holiday) export.`
                     };
                 }
+                // Cross-slot detection: this is the Maintenance Crews upload file
+                if (firstRow.hasOwnProperty('Payroll Item') && firstRow.hasOwnProperty('Duration')) {
+                    return {
+                        valid: false,
+                        message: `⚠️ This looks like the Maintenance Crews upload from the new system.\n\nDrop it in the "Maintenance Crews Upload" box instead — this box is for the Time Entry (PTO/Holiday) export.`
+                    };
+                }
                 return {
                     valid: false,
                     message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Aspire Time Entry Grid Export (.xlsx)\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
@@ -1380,6 +1422,13 @@
                         message: `⚠️ This looks like the Time Entry (PTO/Holiday) export.\n\nDrop it in the "PTO Dump from Aspire" box instead — this box is for the Weekly Hours export.`
                     };
                 }
+                // Cross-slot detection: this is the Maintenance Crews upload file
+                if (firstRow.hasOwnProperty('Payroll Item') && firstRow.hasOwnProperty('Duration')) {
+                    return {
+                        valid: false,
+                        message: `⚠️ This looks like the Maintenance Crews upload from the new system.\n\nDrop it in the "Maintenance Crews Upload" box instead — this box is for the Weekly Hours export.`
+                    };
+                }
                 return {
                     valid: false,
                     message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Aspire Weekly Hours Data Dump (.csv)\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
@@ -1389,13 +1438,51 @@
             return { valid: true, message: `✓ ${data.length} employees loaded` };
         }
 
+        // Validate Maintenance Crews file (new system export, already in NetSuite upload format)
+        function validateMaintFile(data) {
+            if (!data || data.length === 0) {
+                return { valid: false, message: '⚠️ File is empty or could not be parsed' };
+            }
+
+            const firstRow = data[0];
+            const columns = Object.keys(firstRow);
+
+            const required = ['Employee ID', 'Aspire ID', 'Payroll Item', 'Duration'];
+            const missing = required.filter(c => !firstRow.hasOwnProperty(c)).map(c => `"${c}"`);
+
+            if (missing.length > 0) {
+                // Cross-slot detection
+                if (firstRow.hasOwnProperty('Employee #') && firstRow.hasOwnProperty('Work Date')) {
+                    return {
+                        valid: false,
+                        message: `⚠️ This looks like the Aspire Time Entry (PTO/Holiday) export.\n\nDrop it in the "PTO Dump from Aspire" box instead — this box is for the maintenance crews upload from the new system.`
+                    };
+                }
+                if (firstRow.hasOwnProperty('Employee Number') && firstRow.hasOwnProperty('Total')) {
+                    return {
+                        valid: false,
+                        message: `⚠️ This looks like the Aspire Weekly Hours export.\n\nDrop it in the "Data Dump from Aspire" box instead — this box is for the maintenance crews upload from the new system.`
+                    };
+                }
+                return {
+                    valid: false,
+                    message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Maintenance Crews upload (.csv) in NetSuite upload format\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
+                };
+            }
+
+            const totalHours = data.reduce((sum, row) => sum + (parseFloat(row['Duration']) || 0), 0);
+            const uniqueEmps = new Set(data.map(row => String(row['Aspire ID'] || '').trim()).filter(Boolean));
+            return { valid: true, message: `✓ ${data.length} rows loaded (${uniqueEmps.size} employees, ${totalHours.toFixed(1)} hrs)` };
+        }
+
         function updateProcessButton() {
             const btn = document.getElementById('processBtn');
             
             // Check if data exists and is valid
             const ptoValid = ptoData.length > 0 && validatePTOFile(ptoData).valid;
             const dataDumpValid = dataDumpData.length > 0 && validateDataDumpFile(dataDumpData).valid;
-            const hasValidData = ptoValid || dataDumpValid;
+            const maintValid = maintData.length > 0 && validateMaintFile(maintData).valid;
+            const hasValidData = ptoValid || dataDumpValid || maintValid;
             
             const employeeValid = employeeData.length > 0 && validateEmployeeFile(employeeData).valid;
             const hasPayPeriod = document.getElementById('payPeriodDate').value !== '';
@@ -1534,6 +1621,17 @@
             }
             
             return primaryEarningItem;
+        }
+
+        // Derive pay type/code from a NetSuite Payroll Item name (used for the
+        // pre-formatted Maintenance Crews upload, which has no Pay Code column)
+        function getMaintPayInfo(payrollItem) {
+            const item = (payrollItem || '').toLowerCase();
+            if (item.includes('ot pay')) return { type: 'OT', code: 'OT' };
+            if (item.includes('sick')) return { type: 'SICK', code: 'PTO' };
+            if (item.includes('holiday')) return { type: 'HOL', code: 'Hol' };
+            if (item.includes('pto') || item.includes('parental')) return { type: 'PTO', code: 'PTO' };
+            return { type: 'REG', code: 'Reg' };
         }
 
         function getPayType(payCode, payrollItem) {
@@ -1837,6 +1935,59 @@
                     });
                 }
 
+                // Process Maintenance Crews file (new system) — rows arrive already in
+                // NetSuite upload format, so they pass through with pay-type tagging.
+                let maintRowsAdded = 0;
+                let maintHoursAdded = 0;
+                let maintOutsidePayPeriod = 0;
+                const maintOverlaps = new Map(); // aspireId -> name (also present in Aspire exports)
+                if (maintData.length > 0) {
+                    // Aspire IDs already emitted from the Aspire exports (double-pay risk during transition)
+                    const aspireSourceIds = new Set(outputData.map(row => String(row['Aspire ID'])));
+
+                    maintData.forEach(record => {
+                        const aspireId = String(record['Aspire ID'] || '').trim();
+                        const duration = parseFloat(record['Duration'] || '0');
+                        if (!aspireId || duration <= 0) return;
+
+                        const rowDate = record['Date'] || '';
+                        if (rowDate && !isWithinPayPeriod(rowDate)) {
+                            maintOutsidePayPeriod++;
+                        }
+
+                        if (aspireSourceIds.has(aspireId)) {
+                            maintOverlaps.set(aspireId, record['Traditional name'] || record['Aspire Name'] || aspireId);
+                        }
+
+                        const payrollItem = record['Payroll Item'] || '';
+                        const payInfo = getMaintPayInfo(payrollItem);
+                        const branch = (record['Location'] || '').trim();
+                        const division = (record['Division'] || '').trim();
+
+                        allBranches.add(branch);
+                        allDivisions.add(division);
+
+                        outputData.push({
+                            'Employee ID': record['Employee ID'] || '',
+                            'Aspire ID': aspireId,
+                            'Aspire Name': record['Aspire Name'] || '',
+                            'Date': formatDate(payPeriodEndDate || rowDate),
+                            'Payroll Item': payrollItem,
+                            'Duration': duration.toFixed(2),
+                            'Location': branch,
+                            'Division': division,
+                            'Traditional name': record['Traditional name'] || record['Aspire Name'] || '',
+                            // Regenerate so PTO/Hol rows get the standard "PT" suffix
+                            // (the new system's export uses "Re" on every row)
+                            'Concatenate': getConcatenate(division, branch, payInfo.code),
+                            '_PayType': payInfo.type,
+                            '_PayCode': payInfo.code
+                        });
+                        maintRowsAdded++;
+                        maintHoursAdded += duration;
+                    });
+                }
+
                 // Sort output
                 outputData.sort((a, b) => a['Employee ID'].localeCompare(b['Employee ID']));
 
@@ -1922,6 +2073,57 @@
                                 <p class="font-medium text-red-800">⚠️ ${unknownPTOTypes.length} PTO entries with unrecognized Service Names (${totalHours.toFixed(1)} hrs NOT exported)</p>
                                 <p class="text-sm mt-1 text-red-700">These entries have a PTO Pay Code but the Service Name doesn't contain "PTO" or "Sick":</p>
                                 <p class="text-sm mt-2 text-red-600 font-mono">${listItems}${more}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Show maintenance crews merge summary
+                if (maintRowsAdded > 0) {
+                    container.innerHTML += `
+                        <div class="mb-4 p-4 rounded-lg flex items-start bg-green-50 border border-green-200">
+                            <svg class="w-5 h-5 mr-3 mt-0.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-green-800">${maintRowsAdded} maintenance crew records merged (${formatNumber(maintHoursAdded)} hrs)</p>
+                                <p class="text-sm mt-1 text-green-700">Rows from the new maintenance system were combined with the Aspire data.</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Warn if the same employee appears in both the Aspire exports and the maintenance file
+                if (maintOverlaps.size > 0) {
+                    const listItems = Array.from(maintOverlaps.entries())
+                        .slice(0, 15)
+                        .map(([id, name]) => `${id} (${name})`)
+                        .join('<br>');
+                    const more = maintOverlaps.size > 15 ? `<br><em>... and ${maintOverlaps.size - 15} more</em>` : '';
+                    container.innerHTML += `
+                        <div class="mb-4 p-4 rounded-lg flex items-start bg-red-50 border border-red-300">
+                            <svg class="w-5 h-5 mr-3 mt-0.5 text-red-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-red-800">⚠️ ${maintOverlaps.size} employees appear in BOTH the Aspire exports and the Maintenance Crews file</p>
+                                <p class="text-sm mt-1 text-red-700">Their hours are included from both sources — review before uploading to avoid double-paying:</p>
+                                <p class="text-sm mt-2 text-red-600 font-mono">${listItems}${more}</p>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Warn if the maintenance file's dates fall outside the selected pay period
+                if (maintOutsidePayPeriod > 0) {
+                    container.innerHTML += `
+                        <div class="mb-4 p-4 rounded-lg flex items-start bg-amber-50 border border-amber-200">
+                            <svg class="w-5 h-5 mr-3 mt-0.5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-amber-800">${maintOutsidePayPeriod} Maintenance Crews rows are dated outside the selected pay period</p>
+                                <p class="text-sm mt-1 text-amber-700">They were still included (dated as the pay period end), but double-check this isn't a prior week's file.</p>
                             </div>
                         </div>
                     `;
