@@ -1623,6 +1623,22 @@
             return primaryEarningItem;
         }
 
+        // Known bug in the new maintenance tool's export: Concatenate suffix is
+        // hardcoded to "Re". This prompt is surfaced in the UI so Tyler can paste
+        // it into an AI session when fixing the new tool. Remove once fixed.
+        const MAINT_CONCAT_FIX_PROMPT = 'In the payroll export (the NetSuite upload CSV), the Concatenate column is currently built as "{Division} {Branch} Re" with the "Re" suffix hardcoded on every row. The suffix must depend on the payroll item type: rows whose Payroll Item is a PTO, Sick, or Holiday item (e.g. "PTO (direct) - Maint FL", "Sick Pay (direct) - Maint CL", "Holiday Pay (direct) - Maint FL") must end with "PT", while Regular and Overtime rows (e.g. "Reg Pay (direct) - Maint FL", "OT Pay (direct) - Maint CL") keep "Re". Example: for a PTO row, "Maintenance : Maintenance Recurring Phoenix - North Re" should instead be "Maintenance : Maintenance Recurring Phoenix - North PT".';
+
+        function escapeHtml(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function copyMaintConcatFix() {
+            navigator.clipboard.writeText(MAINT_CONCAT_FIX_PROMPT).then(
+                () => alert('Fix prompt copied to clipboard — paste it into your AI session for the new tool.'),
+                () => alert('Could not copy automatically. Select the text in the tooltip and copy it manually.')
+            );
+        }
+
         // Derive pay type/code from a NetSuite Payroll Item name (used for the
         // pre-formatted Maintenance Crews upload, which has no Pay Code column)
         function getMaintPayInfo(payrollItem) {
@@ -1940,6 +1956,7 @@
                 let maintRowsAdded = 0;
                 let maintHoursAdded = 0;
                 let maintOutsidePayPeriod = 0;
+                let maintConcatFixed = 0;
                 const maintOverlaps = new Map(); // aspireId -> name (also present in Aspire exports)
                 if (maintData.length > 0) {
                     // Aspire IDs already emitted from the Aspire exports (double-pay risk during transition)
@@ -1967,6 +1984,11 @@
                         allBranches.add(branch);
                         allDivisions.add(division);
 
+                        const regeneratedConcat = getConcatenate(division, branch, payInfo.code);
+                        if ((record['Concatenate'] || '').trim() && (record['Concatenate'] || '').trim() !== regeneratedConcat) {
+                            maintConcatFixed++;
+                        }
+
                         outputData.push({
                             'Employee ID': record['Employee ID'] || '',
                             'Aspire ID': aspireId,
@@ -1979,7 +2001,7 @@
                             'Traditional name': record['Traditional name'] || record['Aspire Name'] || '',
                             // Regenerate so PTO/Hol rows get the standard "PT" suffix
                             // (the new system's export uses "Re" on every row)
-                            'Concatenate': getConcatenate(division, branch, payInfo.code),
+                            'Concatenate': regeneratedConcat,
                             '_PayType': payInfo.type,
                             '_PayCode': payInfo.code
                         });
@@ -2080,6 +2102,25 @@
 
                 // Show maintenance crews merge summary
                 if (maintRowsAdded > 0) {
+                    // Yellow flag: the new tool's export hardcodes the "Re" Concatenate
+                    // suffix on PTO/Sick/Holiday rows; the app auto-corrects to "PT".
+                    // Tooltip carries a copy-pasteable fix prompt for the new tool.
+                    const concatFlagHtml = maintConcatFixed > 0 ? `
+                        <div class="flex items-start gap-1.5 mt-2">
+                            <span class="relative group inline-flex flex-shrink-0">
+                                <svg class="w-4 h-4 text-amber-500 cursor-help mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                </svg>
+                                <div class="hidden group-hover:block absolute left-0 top-5 z-50 w-[28rem] max-w-[80vw] p-3 bg-white border border-amber-300 rounded-lg shadow-xl text-left cursor-auto">
+                                    <p class="text-xs font-semibold text-amber-800 mb-1">Known bug in the new maintenance tool's export (auto-corrected here)</p>
+                                    <p class="text-xs text-gray-700 mb-2">The new tool writes a "Re" Concatenate suffix on every row, but PTO/Sick/Holiday rows should end in "PT". This app corrects them on merge, so the upload is fine — but the new tool should be fixed at the source. Paste this prompt into an AI session working on the new tool:</p>
+                                    <p class="text-[11px] leading-relaxed font-mono bg-gray-50 border border-gray-200 rounded p-2 mb-2 select-all text-gray-800">${escapeHtml(MAINT_CONCAT_FIX_PROMPT)}</p>
+                                    <button onclick="copyMaintConcatFix()" class="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-medium rounded transition-colors">📋 Copy fix prompt</button>
+                                </div>
+                            </span>
+                            <span class="text-sm text-amber-700">${maintConcatFixed} Concatenate suffixes auto-corrected ("Re" → "PT") — hover the icon for the fix needed in the new tool</span>
+                        </div>
+                    ` : '';
                     container.innerHTML += `
                         <div class="mb-4 p-4 rounded-lg flex items-start bg-green-50 border border-green-200">
                             <svg class="w-5 h-5 mr-3 mt-0.5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2088,6 +2129,7 @@
                             <div>
                                 <p class="font-medium text-green-800">${maintRowsAdded} maintenance crew records merged (${formatNumber(maintHoursAdded)} hrs)</p>
                                 <p class="text-sm mt-1 text-green-700">Rows from the new maintenance system were combined with the Aspire data.</p>
+                                ${concatFlagHtml}
                             </div>
                         </div>
                     `;
