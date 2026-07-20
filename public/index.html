@@ -21,7 +21,7 @@
         <!-- Header -->
         <div class="text-center mb-10">
             <h1 class="text-4xl font-bold text-white mb-2">Payroll Processor</h1>
-            <p class="text-slate-400">Combine Aspire data dumps + maintenance crew exports into one NetSuite upload</p>
+            <p class="text-slate-400">Combine Aspire data dumps + Manage hours exports into one NetSuite upload</p>
         </div>
 
         <!-- Main Card -->
@@ -71,8 +71,8 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                                 </svg>
                             </div>
-                            <p class="font-medium text-gray-700">Maintenance Crews Upload</p>
-                            <p class="text-sm text-gray-500 mt-1" id="maintStatus">New system export (.csv)</p>
+                            <p class="font-medium text-gray-700">Manage Hours Upload</p>
+                            <p class="text-sm text-gray-500 mt-1" id="maintStatus">Maintenance crews only right now</p>
                         </div>
                     </div>
 
@@ -518,7 +518,7 @@
                 const defaultStatus = {
                     pto: 'PTO & Holiday hours',
                     dataDump: 'Regular work hours',
-                    maint: 'New system export (.csv)',
+                    maint: 'Maintenance crews only right now',
                     employee: 'Employee mapping data'
                 };
                 status.innerHTML = `<span class="text-gray-500">${defaultStatus[type]}</span>`;
@@ -892,7 +892,7 @@
             const dropzoneMap = {
                 'pto': { dropzone: 'ptoDropzone', icon: 'ptoIcon', status: 'ptoStatus', expected: 'Aspire Time Entry Grid Export (.xlsx)' },
                 'dataDump': { dropzone: 'dataDumpDropzone', icon: 'dataDumpIcon', status: 'dataDumpStatus', expected: 'Aspire Weekly Hours Data Dump (.csv)' },
-                'maint': { dropzone: 'maintDropzone', icon: 'maintIcon', status: 'maintStatus', expected: 'Maintenance Crews Upload (.csv) with NetSuite upload columns' },
+                'maint': { dropzone: 'maintDropzone', icon: 'maintIcon', status: 'maintStatus', expected: 'Manage Hours Upload (.csv) with NetSuite upload columns' },
                 'employee': { dropzone: 'employeeDropzone', icon: 'employeeIcon', status: 'employeeStatus', expected: 'NetSuite Employee Export (.xls)' }
             };
             const dz = dropzoneMap[type];
@@ -1386,7 +1386,7 @@
                 if (firstRow.hasOwnProperty('Payroll Item') && firstRow.hasOwnProperty('Duration')) {
                     return {
                         valid: false,
-                        message: `⚠️ This looks like the Maintenance Crews upload from the new system.\n\nDrop it in the "Maintenance Crews Upload" box instead — this box is for the Time Entry (PTO/Holiday) export.`
+                        message: `⚠️ This looks like the Manage Hours upload.\n\nDrop it in the "Manage Hours Upload" box instead — this box is for the Time Entry (PTO/Holiday) export.`
                     };
                 }
                 return {
@@ -1426,7 +1426,7 @@
                 if (firstRow.hasOwnProperty('Payroll Item') && firstRow.hasOwnProperty('Duration')) {
                     return {
                         valid: false,
-                        message: `⚠️ This looks like the Maintenance Crews upload from the new system.\n\nDrop it in the "Maintenance Crews Upload" box instead — this box is for the Weekly Hours export.`
+                        message: `⚠️ This looks like the Manage Hours upload.\n\nDrop it in the "Manage Hours Upload" box instead — this box is for the Weekly Hours export.`
                     };
                 }
                 return {
@@ -1455,18 +1455,18 @@
                 if (firstRow.hasOwnProperty('Employee #') && firstRow.hasOwnProperty('Work Date')) {
                     return {
                         valid: false,
-                        message: `⚠️ This looks like the Aspire Time Entry (PTO/Holiday) export.\n\nDrop it in the "PTO Dump from Aspire" box instead — this box is for the maintenance crews upload from the new system.`
+                        message: `⚠️ This looks like the Aspire Time Entry (PTO/Holiday) export.\n\nDrop it in the "PTO Dump from Aspire" box instead — this box is for the Manage Hours upload.`
                     };
                 }
                 if (firstRow.hasOwnProperty('Employee Number') && firstRow.hasOwnProperty('Total')) {
                     return {
                         valid: false,
-                        message: `⚠️ This looks like the Aspire Weekly Hours export.\n\nDrop it in the "Data Dump from Aspire" box instead — this box is for the maintenance crews upload from the new system.`
+                        message: `⚠️ This looks like the Aspire Weekly Hours export.\n\nDrop it in the "Data Dump from Aspire" box instead — this box is for the Manage Hours upload.`
                     };
                 }
                 return {
                     valid: false,
-                    message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Maintenance Crews upload (.csv) in NetSuite upload format\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
+                    message: `⚠️ Wrong file format. Missing: ${missing.join(', ')}\n\nExpected: Manage Hours upload (.csv) in NetSuite upload format\n\nFound columns: ${columns.slice(0, 5).join(', ')}${columns.length > 5 ? '...' : ''}`
                 };
             }
 
@@ -2112,8 +2112,8 @@
                                     <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
                                 </svg>
                                 <div class="hidden group-hover:block absolute left-0 top-5 z-50 w-[28rem] max-w-[80vw] p-3 bg-white border border-amber-300 rounded-lg shadow-xl text-left cursor-auto">
-                                    <p class="text-xs font-semibold text-amber-800 mb-1">Known bug in the new maintenance tool's export (auto-corrected here)</p>
-                                    <p class="text-xs text-gray-700 mb-2">The new tool writes a "Re" Concatenate suffix on every row, but PTO/Sick/Holiday rows should end in "PT". This app corrects them on merge, so the upload is fine — but the new tool should be fixed at the source. Paste this prompt into an AI session working on the new tool:</p>
+                                    <p class="text-xs font-semibold text-amber-800 mb-1">Known bug in the Manage export (auto-corrected here)</p>
+                                    <p class="text-xs text-gray-700 mb-2">Manage writes a "Re" Concatenate suffix on every row, but PTO/Sick/Holiday rows should end in "PT". This app corrects them on merge, so the upload is fine — but Manage should be fixed at the source. Paste this prompt into an AI session working on Manage:</p>
                                     <p class="text-[11px] leading-relaxed font-mono bg-gray-50 border border-gray-200 rounded p-2 mb-2 select-all text-gray-800">${escapeHtml(MAINT_CONCAT_FIX_PROMPT)}</p>
                                     <button onclick="copyMaintConcatFix()" class="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-medium rounded transition-colors">📋 Copy fix prompt</button>
                                 </div>
@@ -2128,7 +2128,7 @@
                             </svg>
                             <div>
                                 <p class="font-medium text-green-800">${maintRowsAdded} maintenance crew records merged (${formatNumber(maintHoursAdded)} hrs)</p>
-                                <p class="text-sm mt-1 text-green-700">Rows from the new maintenance system were combined with the Aspire data.</p>
+                                <p class="text-sm mt-1 text-green-700">Rows from the Manage export were combined with the Aspire data.</p>
                                 ${concatFlagHtml}
                             </div>
                         </div>
